@@ -8,7 +8,7 @@ import (
 )
 
 type Model struct {
-	Id        uuid.UUID      `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	ID        uuid.UUID      `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index"`
@@ -17,7 +17,8 @@ type Model struct {
 type User struct {
 	Model
 	Name     string `json:"name"`
-	Email    string `json:"email" gorm:"not null;unique"`
+	Username string `json:"username" gorm:"not null;unique"`
+	Email    *string `json:"email" gorm:"unique"`
 	Password string `json:"-" gorm:"not null"`
 	Notes    []Note `json:"notes" gorm:"foreignKey:OwnerId;references:Id"`
 }

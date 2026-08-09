@@ -16,6 +16,7 @@ type Config struct {
 	DBName string `envconfig:"DB_NAME" required:"true"`
 	JWTAccessToken string `envconfig:"JWT_ACCESS_TOKEN" required:"true"`
 	JWTRefreshToken string `envconfig:"JWT_REFRESH_TOKEN" required:"true"`
+	BcryptSalt int `envconfig:"BCRYPT_SALT" required:"true"`
 }
 
 var App Config

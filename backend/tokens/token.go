@@ -54,7 +54,7 @@ func (f *TokenFunctions) GenerateRefreshToken(userId string, username string) (s
 		UserId:   userId,
 		Username: username,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24 * 30)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "collabnote_backend",
 		},
