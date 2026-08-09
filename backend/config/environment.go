@@ -9,6 +9,11 @@ import (
 
 type Config struct {
 	AppPort string `envconfig:"APP_PORT" required:"true"`
+	DBPort string `envconfig:"DB_PORT" required:"true"`
+	DBHost string `envconfig:"DB_HOST" required:"true"`
+	DBUser string `envconfig:"DB_USER" required:"true"`
+	DBPassword string `envconfig:"DB_PASSWORD" required:"true"`
+	DBName string `envconfig:"DB_NAME" required:"true"`
 }
 
 var App Config
