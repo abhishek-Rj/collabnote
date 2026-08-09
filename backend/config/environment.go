@@ -14,6 +14,8 @@ type Config struct {
 	DBUser string `envconfig:"DB_USER" required:"true"`
 	DBPassword string `envconfig:"DB_PASSWORD" required:"true"`
 	DBName string `envconfig:"DB_NAME" required:"true"`
+	JWTAccessToken string `envconfig:"JWT_ACCESS_TOKEN" required:"true"`
+	JWTRefreshToken string `envconfig:"JWT_REFRESH_TOKEN" required:"true"`
 }
 
 var App Config
