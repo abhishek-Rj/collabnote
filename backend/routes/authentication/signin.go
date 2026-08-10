@@ -72,5 +72,5 @@ func Signin(c *gin.Context) {
 	}
 	c.SetCookie("access_token", token, int(time.Hour*24*7), "/", "", false, true)
 	c.SetCookie("refresh_token", refreshToken, int(time.Hour*24*30), "/auth/refresh", "", false, true)
-	c.JSON(http.StatusOK, gin.H{"status": "Signin successful"})
+	c.JSON(http.StatusOK, gin.H{"user": newUser, "status": "Signin successful"})
 }

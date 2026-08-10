@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/abhishek-Rj/Collabnote/config"
+	"github.com/abhishek-Rj/Collabnote/routes/authentication"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
@@ -24,6 +25,8 @@ func main() {
 		})
 	})
 
+	auth := server.Group("/auth")
+	authentication.AuthRoutes(auth)
+
 	server.Run(":" + config.App.AppPort)
-    
-}	
+}
