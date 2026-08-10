@@ -8,6 +8,7 @@ import (
 	"github.com/abhishek-Rj/Collabnote/database"
 	"github.com/abhishek-Rj/Collabnote/tokens"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -29,6 +30,11 @@ func Login(c *gin.Context) {
 	user, err := gorm.G[database.User](database.DB).Where("username = ?", loginRequestData.Username).First(ctx)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "user not found"})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginRequestData.Password)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"status": "invalid password"})
 		return
 	}
 	

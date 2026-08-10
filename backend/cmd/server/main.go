@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/abhishek-Rj/Collabnote/config"
+	"github.com/abhishek-Rj/Collabnote/database"
 	"github.com/abhishek-Rj/Collabnote/routes/authentication"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -9,6 +10,7 @@ import (
 
 func main() {
 	config.Load()
+	database.DatabaseConnection()
 	server := gin.Default()
 
 	cors_config := cors.Config{
