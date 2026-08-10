@@ -1,87 +1,107 @@
-@import url('https://fonts.cdnfonts.com/css/google-sans');
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url("https://fonts.cdnfonts.com/css/google-sans");
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 @font-face {
-  font-family: 'PP Supply Mono';
-  src: url('/fonts/PPSupplyMono-Regular.otf') format('opentype');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
+    font-family: "PP Supply Mono";
+    src: url("/fonts/PPSupplyMono-Regular.otf") format("opentype");
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
 }
 
 @layer base {
-  :root {
-    --background: #121212;
-    --foreground: #F5F5F5;
-    --canvas: #121212;
-    --card-bg: #1E1E1E;
-    --gray-secondary: #A3A3A3;
-    --gray-light: #333333;
-    --off-white: #F5F5F5;
-    --accent-orange: #F97316;
-  }
+    :root {
+        --background: #121212;
+        --foreground: #f5f5f5;
+        --canvas: #121212;
+        --card-bg: #1e1e1e;
+        --gray-secondary: #a3a3a3;
+        --gray-light: #333333;
+        --off-white: #f5f5f5;
+        --accent-orange: #f97316;
+    }
 
-  body {
-    background-color: var(--background);
-    color: var(--foreground);
-    font-family: 'Google Sans', 'Plus Jakarta Sans', var(--font-google-sans), system-ui, -apple-system, sans-serif;
-    letter-spacing: -0.02em;
-    overflow-x: hidden;
-  }
+    body {
+        background-color: var(--background);
+        color: var(--foreground);
+        font-family:
+            "Google Sans",
+            "Plus Jakarta Sans",
+            var(--font-google-sans),
+            system-ui,
+            -apple-system,
+            sans-serif;
+        letter-spacing: -0.02em;
+        overflow-x: hidden;
+    }
 
-  /* Focus ring following design system */
-  *:focus-visible {
-    outline: 2px solid var(--accent-orange);
-    outline-offset: 2px;
-  }
+    /* Focus ring following design system */
+    *:focus-visible {
+        outline: 2px solid var(--accent-orange);
+        outline-offset: 2px;
+    }
 }
 
 /* Subtle pixel background grid utility for dark mode */
 .bg-pixel-grid {
-  background-size: 24px 24px;
-  background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-image:
+        linear-gradient(
+            to right,
+            rgba(255, 255, 255, 0.05) 1px,
+            transparent 1px
+        ),
+        linear-gradient(
+            to bottom,
+            rgba(255, 255, 255, 0.05) 1px,
+            transparent 1px
+        );
 }
 
 .bg-dot-grid {
-  background-size: 16px 16px;
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+    background-size: 16px 16px;
+    background-image: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.15) 1px,
+        transparent 1px
+    );
 }
 
 /* Hard architectural border box */
 .border-architectural {
-  border: 1px solid #333333;
-  border-radius: 0px;
+    border: 1px solid #333333;
+    border-radius: 0px;
 }
 
 .border-architectural-light {
-  border: 1px solid #262626;
-  border-radius: 0px;
+    border: 1px solid #262626;
+    border-radius: 0px;
 }
 
 /* Micro technical font helper using PP Supply Mono */
 .font-mono-tech {
-  font-family: var(--font-custom-mono), 'PP Supply Mono', monospace;
-  font-feature-settings: "zero" 1, "tnum" 1;
+    font-family: var(--font-custom-mono), "PP Supply Mono", monospace;
+    font-feature-settings:
+        "zero" 1,
+        "tnum" 1;
 }
 
 /* Custom crisp dark scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+    width: 6px;
+    height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #121212;
+    background: #121212;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333333;
-  border-radius: 0px;
+    background: #333333;
+    border-radius: 0px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #525252;
+    background: #525252;
 }

@@ -29,6 +29,6 @@ func Refresh(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("access_token", accessToken, int((time.Hour*24*7).Seconds()), "/", "", false, true)	
+	c.SetCookie("access_token", accessToken, int((time.Hour*24*7).Seconds()), "/", "localhost", false, true)	
 	c.JSON(http.StatusOK, gin.H{"user": user, "status": "Token refreshed successfully"})
 }

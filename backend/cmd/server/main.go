@@ -14,12 +14,13 @@ func main() {
 	server := gin.Default()
 
 	cors_config := cors.Config{
-		AllowOrigins: []string{"https://localhost:3000"},
-		AllowMethods: []string{"GET", "PUT", "POST", "DELETE", "QUERY"},
-		AllowHeaders: []string{"Content-Type", "Authorization"}, 
+		AllowOrigins:     []string{"http://localhost:3000", "https://localhost:3000", "http://127.0.0.1:3000"},
+		AllowMethods:     []string{"GET", "PUT", "POST", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept"},
+		AllowCredentials: true,
 	}
 
-	server.Use(cors.New(cors_config));
+	server.Use(cors.New(cors_config))
 
 	server.GET("/check-health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
