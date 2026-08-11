@@ -7,12 +7,12 @@ interface user {
     username: string;
 }
 
-interface session {
+interface SessionContextType {
     user: user | null;
     setUser: (user: user | null) => void;
 }
 
-const SessionContext = createContext<session | null>(null);
+const SessionContext = createContext<SessionContextType | null>(null);
 
 export function SessionProvider({
     children,

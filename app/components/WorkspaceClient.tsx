@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TechnicalAnnotation } from "./TechnicalAnnotation";
+import { useSession } from "../context/session";
 
 interface DocumentItem {
     id: string;
@@ -106,6 +107,9 @@ export function WorkspaceClient() {
     const [activeDoc, setActiveDoc] = useState<DocumentItem | null>(null);
     const [docContent, setDocContent] = useState("");
     const [filterOwner, setFilterOwner] = useState("Owned by anyone");
+    const { user } = useSession();
+
+    console.log(user);
 
     const handleOpenDoc = (doc: DocumentItem) => {
         setActiveDoc(doc);
@@ -114,7 +118,24 @@ export function WorkspaceClient() {
         );
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        console.log("handleLogout called!");
+        const authServerUrl =
+            process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
+        try {
+            console.log(
+                "Sending logout request to:",
+                `${authServerUrl}/auth/logout`,
+            );
+            const res = await fetch(`${authServerUrl}/auth/logout`, {
+                method: "GET",
+                credentials: "include",
+            });
+            console.log("Logout response status:", res.status);
+        } catch (err) {
+            console.error("Logout request failed:", err);
+        }
+        console.log("Redirecting to /login");
         router.push("/login");
     };
 
