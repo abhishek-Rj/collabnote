@@ -4,6 +4,7 @@ import (
 	"github.com/abhishek-Rj/Collabnote/config"
 	"github.com/abhishek-Rj/Collabnote/database"
 	"github.com/abhishek-Rj/Collabnote/routes/authentication"
+	"github.com/abhishek-Rj/Collabnote/routes/documents"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
@@ -30,6 +31,9 @@ func main() {
 
 	auth := server.Group("/auth")
 	authentication.AuthRoutes(auth)
+
+	document := server.Group("/document")
+	documents.DocumentRoutes(document)
 
 	server.Run(":" + config.App.AppPort)
 }
