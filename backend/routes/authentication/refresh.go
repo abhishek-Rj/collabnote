@@ -23,7 +23,7 @@ func Refresh(c *gin.Context) {
 		return
 	}
 
-	accessToken, err := tokenFunctions.GenerateAccessToken(user.ID, user.Username)
+	accessToken, err := tokenFunctions.GenerateAccessToken(user.UserId, user.Username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "Internal server error"})
 		return

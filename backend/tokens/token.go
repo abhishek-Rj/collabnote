@@ -33,7 +33,7 @@ func (f *TokenFunctions) GenerateAccessToken(userId string, username string) (st
 }
 
 func (f *TokenFunctions) VerifyAccessToken(accessToken string) (*config.UserDataClaims, error) {
-	var claims *config.UserDataClaims
+	claims := &config.UserDataClaims{}
 
 	token, err := jwt.ParseWithClaims(accessToken, claims, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -72,7 +72,7 @@ func (f *TokenFunctions) GenerateRefreshToken(userId string, username string) (s
 }
 
 func (f *TokenFunctions) VerifyRefreshToken(refreshToken string) (*config.UserDataClaims, error) {
-	var claims *config.UserDataClaims
+	claims := &config.UserDataClaims{}
 
 	token, err := jwt.ParseWithClaims(refreshToken, claims, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {

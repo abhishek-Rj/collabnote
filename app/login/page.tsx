@@ -1,9 +1,14 @@
-import React from "react";
 import Link from "next/link";
 import { TechnicalAnnotation } from "../components/TechnicalAnnotation";
 import { LoginForm } from "../components/LoginForm";
+import getServerSession from "../auth/auth";
+import { redirect } from "next/navigation";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+    const session = await getServerSession();
+    if (session) {
+        redirect("/workspace");
+    }
     return (
         <div className="min-h-screen bg-[#121212] text-[#F5F5F5] flex flex-col justify-between selection:bg-[#F97316] selection:text-white">
             {/* Top Header Bar */}
