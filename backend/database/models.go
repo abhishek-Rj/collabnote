@@ -28,7 +28,7 @@ type Note struct {
 	Title          string    `json:"title" gorm:"not null"`
 	Content        string    `json:"content"`
 	OwnerId        uuid.UUID `json:"owner_id" gorm:"type:uuid;not null"`
-	Collaboraters  []User    `json:"collaboraters" gorm:"constraint:OnDelete:CASCADE;many2many:note_collaboraters"`
+	PublicId		string		`json:"public_id" gorm:"not null;unique"`
 	ReadOnlyUsers  []User    `json:"read_only_users" gorm:"constraint:OnDelete:CASCADE;many2many:note_read_only_users"`
 	WriteOnlyUsers []User    `json:"write_only_users" gorm:"constraint:OnDelete:CASCADE;many2many:note_write_only_users"`
 }

@@ -1,8 +1,14 @@
 package documents
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/abhishek-Rj/Collabnote/middleware"
+	"github.com/gin-gonic/gin"
+)
 
 func DocumentRoutes(document *gin.RouterGroup) {
-	document.POST("/create", Create)
-	document.GET("/fetch", Fetch)
+	protected := document.Group("/")
+	protected.Use(middleware.UserAuthentication)
+	protected.POST("/create", Create)
+	protected.GET("/fetch", Fetch)
+	protected.PUT("/update", Update)
 }
