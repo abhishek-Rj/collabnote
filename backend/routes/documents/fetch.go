@@ -15,6 +15,7 @@ type DocumentFetch struct {
 }
 
 func Fetch(c *gin.Context) {
+	userId := c.MustGet("userId")
 	id := c.Query("id")
 	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "Bad Request", "error": "id parameter is required"})
@@ -24,7 +25,26 @@ func Fetch(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), time.Second*7)
 	defer cancel()
 
-	document, err := gorm.G[database.Note](database.DB).Where("id = ? OR public_id = ?", id, id).First(ctx)
+	document, err := gorm.G[database.Note](database.DB).
+    Where(`
+        (id = ? OR public_id = ?)
+        AND (
+            owner_id = ?
+            OR EXISTS (
+                SELECT 1
+                FROM note_write_only_users w
+                WHERE w.note_id = notes.id
+                  AND w.user_id = ?
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM note_read_only_users r
+                WHERE r.note_id = notes.id
+                  AND r.user_id = ?
+            )
+        )
+    `, id, id, userId, userId, userId).
+    First(ctx)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"status": "Not Found", "error": "document not found"})
 		return

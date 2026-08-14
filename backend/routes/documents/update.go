@@ -31,7 +31,7 @@ func Update(c *gin.Context) {
 	var note database.Note
 	db := gorm.G[database.Note](database.DB)
 
-	note, err := db.Where("id = ? AND ( owner_id = ? OR EXISTS ( SELECT 1 FROM note_write_only_users WHERE note_id = notes.id AND user_id = ?)", documentUpdation.ID, userId, userId).First(ctx)
+	note, err := db.Where("(id = ? OR public_id = ?) AND (owner_id = ? OR EXISTS (SELECT 1 FROM note_write_only_users WHERE note_id = notes.id AND user_id = ?))", documentUpdation.ID, documentUpdation.ID, userId, userId).First(ctx)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"status": "Not Found", "error": "document not found"})
 		return

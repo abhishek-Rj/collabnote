@@ -1,81 +1,34 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { TechnicalAnnotation } from "./TechnicalAnnotation";
 
 interface DocumentClientProps {
-    id: string;
+    id: string; // public_id or database ID
 }
-
-const MOCKUP_DOCS: Record<string, { title: string; content: string }> = {
-    doc_001: {
-        title: "CollabNote Architecture Spec",
-        content: `# CollabNote Architecture Spec\n\nCollabNote is engineered around Conflict-free Replicated Data Types (CRDT). Every keystroke is broadcast with deterministic state convergence.\n\n- Latency Target: < 4ms\n- Peer Connections: WebSockets + WebRTC mesh fallback\n- Vector Clock Revision: 0184`,
-    },
-    doc_002: {
-        title: "CRDT State Vector Notes",
-        content: `# CRDT State Vector Notes\n\nVector clock revisions resolve concurrent edits without server lockouts or handoff friction.\n\n- CRDT Revisions synchronized: 0092\n- Sync interval: realtime`,
-    },
-    doc_003: {
-        title: "System Design & Benchmarks",
-        content: `# System Design & Benchmarks\n\nLatency target < 4ms. Peer connections with WebSockets & WebRTC mesh fallback.\n\n- Benchmark testing results: completed\n- Connection limits: infinite scale`,
-    },
-    doc_004: {
-        title: "Untitled document",
-        content: `# Untitled document\n\nQuick scratchpad notes for sprint retrospective and API contract definitions.\n\n- Created: today`,
-    },
-    doc_005: {
-        title: "Product Roadmap Q3/Q4",
-        content: `# Product Roadmap Q3/Q4\n\nMilestone 1: Dynamic co-author presence cursors. Milestone 2: Offline delta buffer storage in IndexedDB.\n\n- Q3 Goals: Complete CRDT verification\n- Q4 Goals: Secure peer authentication`,
-    },
-    doc_006: {
-        title: "API Authentication Routes",
-        content: `# API Authentication Routes\n\nJWT token validation, refresh cookies, CORS origin verification, bcrypt password hashing.\n\n- Backend server URL: http://localhost:8080\n- Expiry: 7 days`,
-    },
-};
 
 export function DocumentClient({ id }: DocumentClientProps) {
     const router = useRouter();
-    const [title, setTitle] = useState("Loading...");
+
+    const [title, setTitle] = useState("Loading document...");
     const [content, setContent] = useState("");
     const [isLoaded, setIsLoaded] = useState(false);
-    const [syncStatus, setSyncStatus] = useState<"SYNCED" | "SAVING..." | "SAVE_FAILED">("SYNCED");
-    const [typedText, setTypedText] = useState("with zero handoff delay.");
 
-    const isMockup = id.startsWith("doc_") || id.startsWith("tpl_");
+    // Save states: "idle" | "saving" | "saved" | "error"
+    const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
-    // Sarah cursor dynamic typing animation
-    useEffect(() => {
-        const textVariants = [
-            "with zero handoff delay.",
-            "across global edge nodes.",
-            "with 100% state convergence.",
-            "without server lockouts.",
-        ];
-        let idx = 0;
-        const interval = setInterval(() => {
-            idx = (idx + 1) % textVariants.length;
-            setTypedText(textVariants[idx]);
-        }, 3200);
-        return () => clearInterval(interval);
-    }, []);
+    // Modal state for title rename
+    const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+    const [renameTitleInput, setRenameTitleInput] = useState("");
 
-    // Load initial document content
+    const isInitialMount = useRef(true);
+    const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const savedTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Fetch document from backend API on mount
     useEffect(() => {
         const fetchDocument = async () => {
-            if (isMockup) {
-                const doc = MOCKUP_DOCS[id] || {
-                    title: "Untitled document",
-                    content: "# Untitled document\n\nStart typing...",
-                };
-                setTitle(doc.title);
-                setContent(doc.content);
-                setIsLoaded(true);
-                return;
-            }
-
             const authServerUrl =
                 process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
             try {
@@ -86,79 +39,107 @@ export function DocumentClient({ id }: DocumentClientProps) {
                 if (res.ok) {
                     const data = await res.json();
                     if (data.document) {
-                        setTitle(data.document.title || "Untitled document");
+                        setTitle(data.document.title || "Untitled Document");
                         setContent(data.document.content || "");
                     }
+                } else if (res.status === 401) {
+                    router.push("/login");
+                    return;
                 } else {
-                    console.error("Document not found in database, creating placeholder");
-                    setTitle("Untitled document");
-                    setContent("");
+                    setTitle("Untitled Document");
                 }
             } catch (err) {
-                console.error("Error loading document:", err);
-                setTitle("Untitled document");
-                setContent("");
+                console.error("Error fetching document:", err);
+                setTitle("Untitled Document");
             } finally {
                 setIsLoaded(true);
             }
         };
 
         fetchDocument();
-    }, [id, isMockup]);
+    }, [id, router]);
 
-    // Autosave document content with debouncing
+    // Save document to backend
+    const saveDocument = async (customTitle?: string, customContent?: string) => {
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+            autoSaveTimerRef.current = null;
+        }
+
+        const titleToSave = customTitle !== undefined ? customTitle : title;
+        const contentToSave = customContent !== undefined ? customContent : content;
+
+        setSaveState("saving");
+
+        const authServerUrl =
+            process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
+        try {
+            const res = await fetch(`${authServerUrl}/document/update`, {
+                method: "PUT",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    id: id,
+                    title: titleToSave,
+                    content: contentToSave,
+                }),
+            });
+            if (res.ok) {
+                setSaveState("saved");
+                if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+                savedTimerRef.current = setTimeout(() => {
+                    setSaveState("idle");
+                }, 3000);
+            } else if (res.status === 401) {
+                router.push("/login");
+            } else {
+                setSaveState("error");
+            }
+        } catch (err) {
+            console.error("Autosave error:", err);
+            setSaveState("error");
+        }
+    };
+
+    // 4-second debounced autosave timer triggered 4 seconds after the last onChange event
     useEffect(() => {
         if (!isLoaded) return;
 
-        if (isMockup) {
-            setSyncStatus("SAVING...");
-            const timer = setTimeout(() => {
-                setSyncStatus("SYNCED");
-            }, 600);
-            return () => clearTimeout(timer);
+        // Skip saving on initial document load
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
         }
 
-        setSyncStatus("SAVING...");
-        const delayDebounce = setTimeout(async () => {
-            const authServerUrl =
-                process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
-            try {
-                const res = await fetch(`${authServerUrl}/document/update`, {
-                    method: "PUT",
-                    credentials: "include",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ id, title, content }),
-                });
-                if (res.ok) {
-                    setSyncStatus("SYNCED");
-                } else {
-                    setSyncStatus("SAVE_FAILED");
-                }
-            } catch (err) {
-                console.error("Autosave error:", err);
-                setSyncStatus("SAVE_FAILED");
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+        }
+
+        autoSaveTimerRef.current = setTimeout(() => {
+            saveDocument(title, content);
+        }, 4000); // Wait 4 seconds after last keypress
+
+        return () => {
+            if (autoSaveTimerRef.current) {
+                clearTimeout(autoSaveTimerRef.current);
             }
-        }, 1000);
+        };
+    }, [content, title, isLoaded]);
 
-        return () => clearTimeout(delayDebounce);
-    }, [content, title, id, isLoaded, isMockup]);
+    // Handle Title Rename Submission from Modal
+    const handleRenameSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const updatedTitle = renameTitleInput.trim() || "Untitled Document";
+        setTitle(updatedTitle);
+        setIsRenameModalOpen(false);
+        saveDocument(updatedTitle, content);
+    };
 
-    // Calculate word and character count
+    // Word and Character counts
     const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
     const charCount = content.length;
-
-    const activeUsers = [
-        { name: "AKKI", role: "OWNER", status: "ONLINE", color: "#F97316" },
-        {
-            name: "SARAH",
-            role: "EDITOR",
-            status: "TYPING...",
-            color: "#EC4899",
-        },
-        { name: "MARK", role: "REVIEWER", status: "ONLINE", color: "#10B981" },
-    ];
 
     if (!isLoaded) {
         return (
@@ -166,7 +147,7 @@ export function DocumentClient({ id }: DocumentClientProps) {
                 <div className="space-y-4 text-center">
                     <div className="w-10 h-10 border-4 border-t-[#F97316] border-[#333333] rounded-full animate-spin mx-auto" />
                     <div className="font-mono-tech text-xs tracking-widest text-[#A3A3A3] uppercase">
-                        // INITIALIZING STATE VECTOR...
+                        LOADING DOCUMENT...
                     </div>
                 </div>
             </div>
@@ -175,76 +156,106 @@ export function DocumentClient({ id }: DocumentClientProps) {
 
     return (
         <div className="min-h-screen bg-[#121212] text-[#F5F5F5] flex flex-col font-sans selection:bg-[#F97316] selection:text-white">
-            {/* Top Navigation / Toolbar */}
-            <header className="sticky top-0 z-50 bg-[#121212] border-b border-[#262626] px-4 md:px-6 h-16 flex items-center justify-between gap-4">
-                {/* Left side: Back button and editable document title */}
+            {/* Top Toolbar / Header */}
+            <header className="sticky top-0 z-40 bg-[#121212] border-b border-[#262626] px-4 md:px-6 h-16 flex items-center justify-between gap-4">
+                {/* Left: Back button & Document Title */}
                 <div className="flex items-center gap-4 min-w-0">
                     <Link
                         href="/workspace"
-                        className="font-mono-tech text-xs uppercase px-3 py-1.5 bg-[#262626] text-[#A3A3A3] hover:text-white hover:bg-[#333333] border border-[#333333] transition-colors shrink-0"
+                        className="font-mono-tech text-xs uppercase px-3 py-1.5 bg-[#262626] text-[#A3A3A3] hover:text-white hover:bg-[#333333] border border-[#333333] transition-colors shrink-0 flex items-center gap-1.5"
                     >
-                        ← WORKSPACE
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        <span>WORKSPACE</span>
                     </Link>
 
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-2.5 h-2.5 bg-[#F97316] shrink-0" />
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            className="bg-transparent border-b border-transparent hover:border-[#333333] focus:border-[#F97316] text-[#F5F5F5] font-mono-tech text-sm tracking-wide font-semibold focus:outline-none px-1 py-0.5 truncate w-40 sm:w-60 md:w-80"
-                            placeholder="Untitled document"
-                        />
+                        <h1
+                            onClick={() => {
+                                setRenameTitleInput(title);
+                                setIsRenameModalOpen(true);
+                            }}
+                            className="font-mono-tech text-sm tracking-wide font-semibold text-[#F5F5F5] hover:text-[#F97316] cursor-pointer truncate max-w-[200px] sm:max-w-xs md:max-w-md"
+                            title="Click to rename title"
+                        >
+                            {title}
+                        </h1>
+                        <button
+                            onClick={() => {
+                                setRenameTitleInput(title);
+                                setIsRenameModalOpen(true);
+                            }}
+                            className="p-1 text-[#A3A3A3] hover:text-[#F97316] transition-colors shrink-0"
+                            title="Rename Title"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                        </button>
                     </div>
-
-                    <span
-                        className={`font-mono-tech text-[9px] px-1.5 py-0.5 uppercase tracking-wider font-bold shrink-0 ${
-                            syncStatus === "SYNCED"
-                                ? "bg-[#F97316]/20 text-[#F97316]"
-                                : syncStatus === "SAVING..."
-                                ? "bg-blue-900/30 text-blue-400"
-                                : "bg-red-900/30 text-red-400"
-                        }`}
-                    >
-                        {syncStatus}
-                    </span>
                 </div>
 
-                {/* Right side: Session presence */}
+                {/* Right: Direct Interactive Save Button */}
                 <div className="flex items-center gap-3 shrink-0">
-                    <div className="flex items-center gap-2 font-mono-tech text-[10px]">
-                        <span className="text-[#A3A3A3] uppercase tracking-widest hidden lg:inline">
-                            3 ACTIVE USERS:
-                        </span>
-                        {activeUsers.map((u) => (
-                            <div
-                                key={u.name}
-                                className="flex items-center gap-1.5 bg-[#262626] border border-[#333333] px-2 py-0.5 text-white"
-                            >
-                                <span
-                                    className="w-1.5 h-1.5 rounded-full animate-pulse"
-                                    style={{ backgroundColor: u.color }}
-                                />
-                                <span className="font-semibold">{u.name}</span>
-                                <span className="text-[#A3A3A3] hidden md:inline">
-                                    {u.status}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
+                    <button
+                        onClick={() => saveDocument(title, content)}
+                        disabled={saveState === "saving"}
+                        className={`font-mono-tech text-xs uppercase px-4 py-2 font-bold transition-all border flex items-center gap-2 ${
+                            saveState === "saved"
+                                ? "bg-[#10B981]/20 text-[#10B981] border-[#10B981]/40"
+                                : saveState === "saving"
+                                ? "bg-[#3B82F6]/20 text-[#3B82F6] border-[#3B82F6]/40 cursor-wait"
+                                : saveState === "error"
+                                ? "bg-red-950/40 text-red-400 border-red-600/40 hover:bg-red-900/50"
+                                : "bg-[#F97316] text-white border-[#F97316] hover:bg-[#EA580C]"
+                        }`}
+                    >
+                        {saveState === "saving" ? (
+                            <>
+                                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                <span>Saving...</span>
+                            </>
+                        ) : saveState === "saved" ? (
+                            <>
+                                <svg className="w-3.5 h-3.5 text-[#10B981]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span>Saved</span>
+                            </>
+                        ) : saveState === "error" ? (
+                            <>
+                                <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>Save Failed</span>
+                            </>
+                        ) : (
+                            <>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                </svg>
+                                <span>Save</span>
+                            </>
+                        )}
+                    </button>
                 </div>
             </header>
 
-            {/* Sub-Header bar for metadata & stats */}
+            {/* Sub-Header Bar: Metadata & Stats */}
             <div className="bg-[#181818] border-b border-[#262626] px-4 md:px-6 py-2 flex items-center justify-between font-mono-tech text-xs text-[#A3A3A3]">
                 <div className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#F97316]" />
-                    <span className="uppercase text-[9px] sm:text-[10px] tracking-widest font-semibold text-[#F5F5F5]">
-                        REAL-TIME CO-AUTHOR SPEC // ID: {id.slice(0, 8)}
+                    <span className="uppercase text-[10px] tracking-widest font-semibold text-[#A3A3A3]">
+                        ID: {id}
                     </span>
                 </div>
 
-                <div className="flex items-center gap-3 text-[9px] sm:text-[10px] uppercase tracking-wider">
+                <div className="flex items-center gap-4 text-[10px] uppercase tracking-wider">
                     <span>
                         WORDS: <strong className="text-[#F5F5F5]">{wordCount}</strong>
                     </span>
@@ -254,38 +265,74 @@ export function DocumentClient({ id }: DocumentClientProps) {
                 </div>
             </div>
 
-            {/* Document Editor Canvas */}
+            {/* Clean Editor Canvas */}
             <main className="flex-1 max-w-5xl w-full mx-auto px-4 md:px-8 py-8">
-                <div className="w-full bg-[#1E1E1E] border border-[#333333] shadow-2xl p-6 relative flex flex-col min-h-[500px]">
+                <div className="w-full bg-[#1E1E1E] border border-[#333333] shadow-2xl p-6 md:p-8 flex flex-col min-h-[600px]">
                     <textarea
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
-                        className="w-full flex-1 bg-transparent text-[#D4D4D4] font-sans text-sm md:text-base leading-relaxed focus:outline-none resize-none min-h-[440px]"
-                        placeholder="Write your document..."
+                        className="w-full flex-1 bg-transparent text-[#F5F5F5] font-sans text-base md:text-lg leading-relaxed focus:outline-none resize-none min-h-[540px] selection:bg-[#F97316] selection:text-white"
+                        placeholder="Start typing your document here..."
+                        autoFocus
                     />
-
-                    {/* Simulated typing visual decoration at the bottom */}
-                    <div className="mt-4 pt-4 border-t border-[#262626] flex flex-wrap items-center justify-between gap-4">
-                        <div className="inline-flex items-center gap-1.5 font-mono-tech">
-                            <div className="flex flex-col items-center justify-between h-4 w-1.5 text-[#EC4899]">
-                                <div className="w-2 h-[2px] bg-[#EC4899]" />
-                                <div className="w-[1.5px] h-full bg-[#EC4899] animate-pulse" />
-                                <div className="w-2 h-[2px] bg-[#EC4899]" />
-                            </div>
-                            <span className="bg-[#EC4899] text-white text-[8px] sm:text-[9px] px-1.5 py-0.5 uppercase tracking-wider font-bold">
-                                SARAH is typing: "{typedText}"
-                            </span>
-                        </div>
-
-                        <div className="bg-[#121212] text-[#F5F5F5] font-mono-tech text-[9px] sm:text-[10px] px-2 py-0.5 flex items-center gap-2 border border-[#333333]">
-                            <span className="text-[#F97316]">
-                                ● AKKI ACTIVE
-                            </span>
-                            <span className="text-[#737373]">REV #0184</span>
-                        </div>
-                    </div>
                 </div>
             </main>
+
+            {/* Rename Title Modal Dialog */}
+            {isRenameModalOpen && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+                    <div className="w-full max-w-md bg-[#1E1E1E] border border-[#F97316] p-6 space-y-6 shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-[#333333] pb-3">
+                            <h3 className="font-mono-tech text-sm uppercase text-[#F5F5F5] font-bold">
+                                // Rename Document Title
+                            </h3>
+                            <button
+                                onClick={() => setIsRenameModalOpen(false)}
+                                className="text-[#A3A3A3] hover:text-white p-1"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleRenameSubmit} className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="block font-mono-tech text-xs uppercase text-[#A3A3A3]">
+                                    New Document Title
+                                </label>
+                                <input
+                                    type="text"
+                                    value={renameTitleInput}
+                                    onChange={(e) => setRenameTitleInput(e.target.value)}
+                                    placeholder="Enter title..."
+                                    autoFocus
+                                    className="w-full px-4 py-3 bg-[#121212] border border-[#333333] font-mono-tech text-sm text-[#F5F5F5] focus:outline-none focus:border-[#F97316]"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsRenameModalOpen(false)}
+                                    className="px-4 py-2 font-mono-tech text-xs uppercase text-[#A3A3A3] hover:text-white border border-[#333333]"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-5 py-2 font-mono-tech text-xs uppercase bg-[#F97316] text-white font-bold hover:bg-[#EA580C] flex items-center gap-1.5"
+                                >
+                                    <span>Save Title</span>
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -56,8 +56,8 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("access_token", *accessToken, int((time.Hour*24*7).Seconds()), "/", "localhost", false, true)
-	c.SetCookie("refresh_token", *refreshToken, int((time.Hour*24*30).Seconds()), "/auth/refresh", "localhost", false, true)
+	c.SetCookie("access_token", *accessToken, int((time.Hour*24*7).Seconds()), "/", "", false, true)
+	c.SetCookie("refresh_token", *refreshToken, int((time.Hour*24*30).Seconds()), "/auth/refresh", "", false, true)
 
 	c.JSON(http.StatusOK, gin.H{"user": user, "status": "Login successful"})
 }

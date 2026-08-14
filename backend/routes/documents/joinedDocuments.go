@@ -33,6 +33,8 @@ func JoinedDocuments(c *gin.Context) {
               AND wo.user_id = ?
         )
     `, userId, userId, userId).
+	Order("updated_at DESC").
+	Order("created_at DESC").
     Find(ctx)
 
 	if err != nil {
