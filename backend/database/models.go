@@ -32,3 +32,12 @@ type Note struct {
 	ReadOnlyUsers  []User    `json:"read_only_users" gorm:"constraint:OnDelete:CASCADE;many2many:note_read_only_users"`
 	WriteOnlyUsers []User    `json:"write_only_users" gorm:"constraint:OnDelete:CASCADE;many2many:note_write_only_users"`
 }
+
+type NoteInvite struct {
+	Model
+	NoteId		uuid.UUID	`json:"note_id" gorm:"type:uuid;not null"`
+	Code 		string		`json:"code" gorm:"not null;uniqueIndex"`
+	Permission 	string		`json:"permission" gorm:"not null"`
+	CreatedBy	uuid.UUID	`json:"created_by" gorm:"type:uuid;not null"`
+	User		User		`gorm:"foreignKey:CreatedBy"`
+}
