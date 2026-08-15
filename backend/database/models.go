@@ -41,3 +41,13 @@ type NoteInvite struct {
 	CreatedBy	uuid.UUID	`json:"created_by" gorm:"type:uuid;not null"`
 	User		User		`gorm:"foreignKey:CreatedBy"`
 }
+
+type NoteWriteOnlyUser struct {
+	NoteId	uuid.UUID 		`gorm:"type:uuid;primaryKey"`
+	UserId 	uuid.UUID 		`gorm:"type:uuid;primaryKey"`
+}
+
+type NoteReadOnlyUser struct {
+	NoteId	uuid.UUID 		`gorm:"type:uuid;primaryKey"`
+	UserId 	uuid.UUID 		`gorm:"type:uuid;primaryKey"`
+}
