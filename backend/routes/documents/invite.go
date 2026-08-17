@@ -15,8 +15,8 @@ import (
 )
 
 type inviteRequest struct {
-	NoteId	string	`json:"note_id;required"`
-	Permission	string	`json:"permission;required"`
+	NoteId     string `json:"note_id"`
+	Permission string `json:"permission"`
 }
 
 func generateRandomCode() (string, error) {
@@ -36,60 +36,73 @@ func Invite(c *gin.Context) {
 	userId := c.MustGet("userId").(string)
 	user_id, err := uuid.Parse(userId)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "Internal Server Error"})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Bad Request", "error": "Invalid user ID"})
 		return
 	}
-	var request inviteRequest
 
+	var request inviteRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "Internal Server Error"})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Bad Request", "error": err.Error()})
 		return
 	}
+
 	if request.Permission != "read" && request.Permission != "write" {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "Internal Server Error"})
-		return
+		request.Permission = "write"
 	}
-	
+
 	ctx, cancel := context.WithTimeout(c.Request.Context(), time.Second*7)
 	defer cancel()
-	
+
 	db := gorm.G[database.Note](database.DB)
-	note, err := db.Where("id = ?", request.NoteId).First(ctx)
+	note, err := db.Where("id = ? OR public_id = ?", request.NoteId, request.NoteId).First(ctx)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "Internal Server Error"})
-		return
-	}
-	ownerId := note.OwnerId.String()
-	if ownerId != userId {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "Unauthorized"})
+		c.JSON(http.StatusNotFound, gin.H{"status": "Not Found", "error": "Document not found"})
 		return
 	}
 
-	parseUUID, err := uuid.Parse(request.NoteId)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "Internal Server Error"})
-		return
+	if note.OwnerId.String() != userId {
+		var writeUser database.NoteWriteOnlyUser
+		_, err := gorm.G[database.NoteWriteOnlyUser](database.DB).Where("note_id = ? AND user_id = ?", note.ID, user_id).First(ctx)
+		if err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"status": "Forbidden", "error": "Only document owner or editors can invite co-authors"})
+			return
+		}
+		_ = writeUser
 	}
 
-	code, err := generateRandomCode()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "Internal Server Error"})
-		return
+	inviteDb := gorm.G[database.NoteInvite](database.DB)
+	existingInvite, err := inviteDb.Where("note_id = ? AND permission = ?", note.ID, request.Permission).First(ctx)
+
+	var code string
+	if err == nil && existingInvite.Code != "" {
+		code = existingInvite.Code
+	} else {
+		newCode, err := generateRandomCode()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "Internal Server Error", "error": "Failed to generate invite code"})
+			return
+		}
+		code = newCode
+
+		invite := database.NoteInvite{
+			NoteId:     note.ID,
+			Code:       code,
+			Permission: request.Permission,
+			CreatedBy:  user_id,
+		}
+
+		err = inviteDb.Create(ctx, &invite)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "Internal Server Error", "error": "Failed to store invite code"})
+			return
+		}
 	}
 
-	invite := database.NoteInvite{
-		NoteId: parseUUID,
-		Code: code,
-		Permission: request.Permission,
-		CreatedBy: user_id,
-	}
-	
-	err = gorm.G[database.NoteInvite](database.DB).Create(ctx, &invite)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "Internal Server Error"})
-		return
-	}
 	url := "http://localhost:3000/join/" + code
-	
-	c.JSON(http.StatusOK, gin.H{"status": "Successfull", url: url})
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "Successful",
+		"code":   code,
+		"url":    url,
+	})
 }

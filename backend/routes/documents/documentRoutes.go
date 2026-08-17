@@ -12,4 +12,6 @@ func DocumentRoutes(document *gin.RouterGroup) {
 	protected.GET("/fetch", Fetch)
 	protected.PUT("/update", Update)
 	protected.GET("/fetch-all-docs", JoinedDocuments)
+	protected.POST("/invite", Invite)
+	protected.POST("/join", Join)
 }

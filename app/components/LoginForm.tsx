@@ -2,10 +2,12 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export function LoginForm() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const redirectUrl = searchParams.get("redirectUrl") || "/workspace";
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -47,7 +49,7 @@ export function LoginForm() {
                     type: "success",
                     text: "AUTHENTICATED // REDIRECTING TO WORKSPACE...",
                 });
-                router.push("/workspace");
+                router.push(redirectUrl);
             } else {
                 setIsLoading(false);
                 setStatusMsg({

@@ -13,7 +13,7 @@ func main() {
 
 	var err error
 
-	if err = database.DB.AutoMigrate(&database.User{}, &database.Note{}); err != nil {
+	if err = database.DB.AutoMigrate(&database.User{}, &database.Note{}, &database.NoteInvite{}); err != nil {
 		log.Fatal("Error in migration: ", err)
 	}
 
