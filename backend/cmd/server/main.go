@@ -5,6 +5,7 @@ import (
 	"github.com/abhishek-Rj/Collabnote/database"
 	"github.com/abhishek-Rj/Collabnote/routes/authentication"
 	"github.com/abhishek-Rj/Collabnote/routes/documents"
+	"github.com/abhishek-Rj/Collabnote/websockets"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
@@ -35,5 +36,8 @@ func main() {
 	document := server.Group("/document")
 	documents.DocumentRoutes(document)
 
+	websocket := server.Group("/")
+	websockets.WebSocketRoutes(websocket)
+	
 	server.Run(":" + config.App.AppPort)
 }
