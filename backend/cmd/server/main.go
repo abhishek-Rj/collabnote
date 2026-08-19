@@ -36,8 +36,9 @@ func main() {
 	document := server.Group("/document")
 	documents.DocumentRoutes(document)
 
-	websocket := server.Group("/")
+	websocket := server.Group("/ws")
 	websockets.WebSocketRoutes(websocket)
+	go websockets.HandleMessages()
 	
 	server.Run(":" + config.App.AppPort)
 }
