@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -15,6 +16,13 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type ClientsLis = []*websocket.Conn
+
+var clients ClientsLis
+var chambers map[string]ClientsLis
+var pipe = make(chan []byte)
+var mutex = &sync.Mutex{}
+
 func WebSocketHandler(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)	
 	if err != nil {
@@ -22,20 +30,24 @@ func WebSocketHandler(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
-	 
-	go handleConnection(conn)	
-}
-
-func handleConnection(conn *websocket.Conn) {
+	
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			fmt.Println("Error Reading message:",  err)
+			fmt.Println("Error Reading message", err)
 			break
 		}
-		fmt.Println("Received message:", message)
 
-		if err := conn.WriteMessage(websocket.TextMessage, message); err != nil {
+		fmt.Println("Message:", message)
+
+		pipe <- message
+
+	}
+}
+
+func HandleMessages(conn *websocket.Conn) {
+	for {
+		if err := conn.WriteMessage(websocket.TextMessage, ); err != nil {
 			fmt.Println("Error writing message", err)
 			break
 		}
