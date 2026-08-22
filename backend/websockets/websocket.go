@@ -23,7 +23,7 @@ type Message struct {
 	message 	[]byte
 }
 
-var chambers map[string]ClientsList
+var chambers = make(map[string]ClientsList)
 var pipe = make(chan Message)
 var mutex = &sync.Mutex{}
 

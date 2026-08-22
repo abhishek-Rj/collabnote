@@ -15,10 +15,10 @@ enum Type {
 }
 
 interface Operation {
-    type: Type;
+    type: Type; // "insert" | "delete" | "modify"
     position: number;
-    length?: number;
-    text?: string;
+    len?: number; // (optional) No need in insert
+    text?: string; // (optional) No need in delete
 }
 
 export function DocumentClient({ id }: DocumentClientProps) {
@@ -61,8 +61,9 @@ export function DocumentClient({ id }: DocumentClientProps) {
 
     useEffect(() => {
         const ws = new WebSocket(
-            `${process.env.NEXT_PUBLIC_WEBSOCKET_SOCKET_URL}/${id}`,
+            `${process.env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL}/${id}`,
         );
+        console.log(`${process.env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL}/${id}`);
         setSocketConnection(ws);
 
         ws.onopen = () => {
@@ -70,15 +71,42 @@ export function DocumentClient({ id }: DocumentClientProps) {
         };
 
         ws.onmessage = (event) => {
-            const operation = JSON.parse(event.data);
+            const operation: Operation = JSON.parse(event.data);
 
-            if (operation == "insert") {
+            if (operation.type === "insert") {
+                // Insert operation.text into content
+                const position = operation.position;
+                const text = operation.text;
+                setContent(
+                    (content) =>
+                        content.slice(0, position) +
+                        text +
+                        content.slice(position),
+                );
             }
 
-            if (operation == "delete") {
+            if (operation.type === "delete") {
+                // Delete operation.text from content
+                const position = operation.position;
+                const len = operation.len!;
+                setContent(
+                    (content) =>
+                        content.slice(0, position) +
+                        content.slice(position + len),
+                );
             }
 
-            if (operation == "modify") {
+            if (operation.type === "modify") {
+                // Modify operation.text to content
+                const position = operation.position;
+                const len = operation.len!;
+                const text = operation.text!;
+                const replace = content.slice(position, len);
+                setContent(
+                    (content) =>
+                        content.slice(0, position) +
+                        content.replace(replace, text),
+                );
             }
         };
 
@@ -91,7 +119,7 @@ export function DocumentClient({ id }: DocumentClientProps) {
         };
 
         return () => {
-            socketConnection?.close();
+            ws?.close();
         };
     }, []);
 
@@ -136,14 +164,14 @@ export function DocumentClient({ id }: DocumentClientProps) {
             return {
                 type: Type.Delete,
                 position: start,
-                length: oldEnd - start + 1,
+                len: oldEnd - start + 1,
             };
         }
 
         return {
             type: Type.Modify,
             position: start,
-            length: oldEnd - start + 1,
+            len: oldEnd - start + 1,
             text: newContent.slice(start, newEnd + 1),
         };
     };
