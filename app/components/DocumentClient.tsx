@@ -5,7 +5,20 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 interface DocumentClientProps {
-    id: string; // public_id or database ID
+    id: string;
+}
+
+enum Type {
+    Insert = "insert",
+    Delete = "delete",
+    Modify = "modify",
+}
+
+interface Operation {
+    type: Type;
+    position: number;
+    length?: number;
+    text?: string;
 }
 
 export function DocumentClient({ id }: DocumentClientProps) {
@@ -20,7 +33,9 @@ export function DocumentClient({ id }: DocumentClientProps) {
     } | null>(null);
 
     // Save states: "idle" | "saving" | "saved" | "error"
-    const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+    const [saveState, setSaveState] = useState<
+        "idle" | "saving" | "saved" | "error"
+    >("idle");
 
     // Modal state for title rename
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
@@ -28,25 +43,134 @@ export function DocumentClient({ id }: DocumentClientProps) {
 
     // Modal state for document sharing
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-    const [permissionInput, setPermissionInput] = useState<"write" | "read">("write");
+    const [permissionInput, setPermissionInput] = useState<"write" | "read">(
+        "write",
+    );
     const [generatedInviteUrl, setGeneratedInviteUrl] = useState("");
     const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
     const [copied, setCopied] = useState(false);
+
+    // websocket Connection
+    const [socketConnection, setSocketConnection] = useState<WebSocket | null>(
+        null,
+    );
 
     const isInitialMount = useRef(true);
     const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
     const savedTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+    useEffect(() => {
+        const ws = new WebSocket(
+            `${process.env.NEXT_PUBLIC_WEBSOCKET_SOCKET_URL}/${id}`,
+        );
+        setSocketConnection(ws);
+
+        ws.onopen = () => {
+            console.log("Connection Established");
+        };
+
+        ws.onmessage = (event) => {
+            const operation = JSON.parse(event.data);
+
+            if (operation == "insert") {
+            }
+
+            if (operation == "delete") {
+            }
+
+            if (operation == "modify") {
+            }
+        };
+
+        ws.onclose = () => {
+            console.log("Connection Closed");
+        };
+
+        ws.onerror = () => {
+            console.log("Error!!");
+        };
+
+        return () => {
+            socketConnection?.close();
+        };
+    }, []);
+
+    const getOperation = (
+        content: string,
+        newContent: string,
+    ): Operation | null => {
+        if (content === newContent) {
+            return null;
+        }
+
+        let start = 0;
+        while (
+            content[start] === newContent[start] &&
+            start < content.length &&
+            start < newContent.length
+        ) {
+            start++;
+        }
+
+        let oldEnd = content.length;
+        let newEnd = newContent.length;
+
+        while (
+            content[oldEnd] === newContent[newEnd] &&
+            oldEnd >= start &&
+            newEnd >= start
+        ) {
+            oldEnd--;
+            newEnd--;
+        }
+
+        if (oldEnd < start) {
+            return {
+                type: Type.Insert,
+                position: start,
+                text: newContent.slice(start, newEnd + 1),
+            };
+        }
+
+        if (newEnd < start) {
+            return {
+                type: Type.Delete,
+                position: start,
+                length: oldEnd - start + 1,
+            };
+        }
+
+        return {
+            type: Type.Modify,
+            position: start,
+            length: oldEnd - start + 1,
+            text: newContent.slice(start, newEnd + 1),
+        };
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const newContent = e.target.value;
+
+        const operation = getOperation(content, newContent);
+        setContent(newContent);
+
+        socketConnection?.send(JSON.stringify(operation));
+    };
+
     // Fetch document from backend API on mount
     useEffect(() => {
         const fetchDocument = async () => {
             const authServerUrl =
-                process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
+                process.env.NEXT_PUBLIC_AUTH_SERVER_URL ||
+                "http://localhost:8080";
             try {
-                const res = await fetch(`${authServerUrl}/document/fetch?id=${id}`, {
-                    method: "GET",
-                    credentials: "include",
-                });
+                const res = await fetch(
+                    `${authServerUrl}/document/fetch?id=${id}`,
+                    {
+                        method: "GET",
+                        credentials: "include",
+                    },
+                );
                 if (res.ok) {
                     const data = await res.json();
                     if (data.document) {
@@ -100,7 +224,10 @@ export function DocumentClient({ id }: DocumentClientProps) {
     }, [id, router]);
 
     // Save document to backend
-    const saveDocument = async (customTitle?: string, customContent?: string) => {
+    const saveDocument = async (
+        customTitle?: string,
+        customContent?: string,
+    ) => {
         if (accessDenied) return;
 
         if (autoSaveTimerRef.current) {
@@ -109,7 +236,8 @@ export function DocumentClient({ id }: DocumentClientProps) {
         }
 
         const titleToSave = customTitle !== undefined ? customTitle : title;
-        const contentToSave = customContent !== undefined ? customContent : content;
+        const contentToSave =
+            customContent !== undefined ? customContent : content;
 
         setSaveState("saving");
 
@@ -255,8 +383,18 @@ export function DocumentClient({ id }: DocumentClientProps) {
             <div className="min-h-screen bg-[#121212] text-[#F5F5F5] flex flex-col items-center justify-center font-sans p-4 selection:bg-[#F97316] selection:text-white">
                 <div className="w-full max-w-md bg-[#1E1E1E] border border-red-600/60 p-8 space-y-6 text-center shadow-2xl relative overflow-hidden">
                     <div className="w-12 h-12 bg-red-950/50 border border-red-600/40 rounded-full flex items-center justify-center mx-auto shadow-lg">
-                        <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        <svg
+                            className="w-6 h-6 text-red-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                            />
                         </svg>
                     </div>
 
@@ -295,8 +433,18 @@ export function DocumentClient({ id }: DocumentClientProps) {
                         href="/workspace"
                         className="font-mono-tech text-xs uppercase px-3 py-1.5 bg-[#262626] text-[#A3A3A3] hover:text-white hover:bg-[#333333] border border-[#333333] transition-colors shrink-0 flex items-center gap-1.5"
                     >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        <svg
+                            className="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                            />
                         </svg>
                         <span>WORKSPACE</span>
                     </Link>
@@ -321,8 +469,18 @@ export function DocumentClient({ id }: DocumentClientProps) {
                             className="p-1 text-[#A3A3A3] hover:text-[#F97316] transition-colors shrink-0"
                             title="Rename Title"
                         >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            <svg
+                                className="w-3.5 h-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                />
                             </svg>
                         </button>
                     </div>
@@ -338,8 +496,18 @@ export function DocumentClient({ id }: DocumentClientProps) {
                         }}
                         className="font-mono-tech text-xs uppercase px-3 py-2 font-bold transition-all border border-[#333333] bg-[#262626] text-[#F5F5F5] hover:bg-[#333333] flex items-center gap-1.5"
                     >
-                        <svg className="w-3.5 h-3.5 text-[#F97316]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                        <svg
+                            className="w-3.5 h-3.5 text-[#F97316]"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                            />
                         </svg>
                         <span>Share</span>
                     </button>
@@ -351,38 +519,83 @@ export function DocumentClient({ id }: DocumentClientProps) {
                             saveState === "saved"
                                 ? "bg-[#10B981]/20 text-[#10B981] border-[#10B981]/40"
                                 : saveState === "saving"
-                                ? "bg-[#3B82F6]/20 text-[#3B82F6] border-[#3B82F6]/40 cursor-wait"
-                                : saveState === "error"
-                                ? "bg-red-950/40 text-red-400 border-red-600/40 hover:bg-red-900/50"
-                                : "bg-[#F97316] text-white border-[#F97316] hover:bg-[#EA580C]"
+                                  ? "bg-[#3B82F6]/20 text-[#3B82F6] border-[#3B82F6]/40 cursor-wait"
+                                  : saveState === "error"
+                                    ? "bg-red-950/40 text-red-400 border-red-600/40 hover:bg-red-900/50"
+                                    : "bg-[#F97316] text-white border-[#F97316] hover:bg-[#EA580C]"
                         }`}
                     >
                         {saveState === "saving" ? (
                             <>
-                                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                <svg
+                                    className="w-3.5 h-3.5 animate-spin"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <circle
+                                        className="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="4"
+                                    />
+                                    <path
+                                        className="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    />
                                 </svg>
                                 <span>Saving...</span>
                             </>
                         ) : saveState === "saved" ? (
                             <>
-                                <svg className="w-3.5 h-3.5 text-[#10B981]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                <svg
+                                    className="w-3.5 h-3.5 text-[#10B981]"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M5 13l4 4L19 7"
+                                    />
                                 </svg>
                                 <span>Saved</span>
                             </>
                         ) : saveState === "error" ? (
                             <>
-                                <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <svg
+                                    className="w-3.5 h-3.5 text-red-400"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                    />
                                 </svg>
                                 <span>Save Failed</span>
                             </>
                         ) : (
                             <>
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                <svg
+                                    className="w-3.5 h-3.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+                                    />
                                 </svg>
                                 <span>Save</span>
                             </>
@@ -402,10 +615,12 @@ export function DocumentClient({ id }: DocumentClientProps) {
 
                 <div className="flex items-center gap-4 text-[10px] uppercase tracking-wider">
                     <span>
-                        WORDS: <strong className="text-[#F5F5F5]">{wordCount}</strong>
+                        WORDS:{" "}
+                        <strong className="text-[#F5F5F5]">{wordCount}</strong>
                     </span>
                     <span>
-                        CHARS: <strong className="text-[#F5F5F5]">{charCount}</strong>
+                        CHARS:{" "}
+                        <strong className="text-[#F5F5F5]">{charCount}</strong>
                     </span>
                 </div>
             </div>
@@ -415,7 +630,7 @@ export function DocumentClient({ id }: DocumentClientProps) {
                 <div className="w-full bg-[#1E1E1E] border border-[#333333] shadow-2xl p-6 md:p-8 flex flex-col min-h-[600px]">
                     <textarea
                         value={content}
-                        onChange={(e) => setContent(e.target.value)}
+                        onChange={handleChange}
                         className="w-full flex-1 bg-transparent text-[#F5F5F5] font-sans text-base md:text-lg leading-relaxed focus:outline-none resize-none min-h-[540px] selection:bg-[#F97316] selection:text-white"
                         placeholder="Start typing your document here..."
                         autoFocus
@@ -429,8 +644,18 @@ export function DocumentClient({ id }: DocumentClientProps) {
                     <div className="w-full max-w-md bg-[#1E1E1E] border border-[#F97316] p-6 space-y-6 shadow-2xl">
                         <div className="flex items-center justify-between border-b border-[#333333] pb-3">
                             <h3 className="font-mono-tech text-sm uppercase text-[#F5F5F5] font-bold flex items-center gap-2">
-                                <svg className="w-4 h-4 text-[#F97316]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                <svg
+                                    className="w-4 h-4 text-[#F97316]"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                                    />
                                 </svg>
                                 <span>// Share Document</span>
                             </h3>
@@ -438,8 +663,18 @@ export function DocumentClient({ id }: DocumentClientProps) {
                                 onClick={() => setIsShareModalOpen(false)}
                                 className="text-[#A3A3A3] hover:text-white p-1"
                             >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
                                 </svg>
                             </button>
                         </div>
@@ -452,12 +687,18 @@ export function DocumentClient({ id }: DocumentClientProps) {
                                 <select
                                     value={permissionInput}
                                     onChange={(e) =>
-                                        setPermissionInput(e.target.value as "write" | "read")
+                                        setPermissionInput(
+                                            e.target.value as "write" | "read",
+                                        )
                                     }
                                     className="w-full px-4 py-3 bg-[#121212] border border-[#333333] font-mono-tech text-sm text-[#F5F5F5] focus:outline-none focus:border-[#F97316]"
                                 >
-                                    <option value="write">Can Edit (Full Access)</option>
-                                    <option value="read">Can View (Read-only Access)</option>
+                                    <option value="write">
+                                        Can Edit (Full Access)
+                                    </option>
+                                    <option value="read">
+                                        Can View (Read-only Access)
+                                    </option>
                                 </select>
                             </div>
 
@@ -470,9 +711,24 @@ export function DocumentClient({ id }: DocumentClientProps) {
                                 >
                                     {isGeneratingInvite ? (
                                         <>
-                                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                            <svg
+                                                className="w-4 h-4 animate-spin"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <circle
+                                                    className="opacity-25"
+                                                    cx="12"
+                                                    cy="12"
+                                                    r="10"
+                                                    stroke="currentColor"
+                                                    strokeWidth="4"
+                                                />
+                                                <path
+                                                    className="opacity-75"
+                                                    fill="currentColor"
+                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                />
                                             </svg>
                                             <span>Generating Link...</span>
                                         </>
@@ -528,13 +784,26 @@ export function DocumentClient({ id }: DocumentClientProps) {
                                 onClick={() => setIsRenameModalOpen(false)}
                                 className="text-[#A3A3A3] hover:text-white p-1"
                             >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
                                 </svg>
                             </button>
                         </div>
 
-                        <form onSubmit={handleRenameSubmit} className="space-y-4">
+                        <form
+                            onSubmit={handleRenameSubmit}
+                            className="space-y-4"
+                        >
                             <div className="space-y-1.5">
                                 <label className="block font-mono-tech text-xs uppercase text-[#A3A3A3]">
                                     New Document Title
@@ -542,7 +811,9 @@ export function DocumentClient({ id }: DocumentClientProps) {
                                 <input
                                     type="text"
                                     value={renameTitleInput}
-                                    onChange={(e) => setRenameTitleInput(e.target.value)}
+                                    onChange={(e) =>
+                                        setRenameTitleInput(e.target.value)
+                                    }
                                     placeholder="Enter title..."
                                     autoFocus
                                     className="w-full px-4 py-3 bg-[#121212] border border-[#333333] font-mono-tech text-sm text-[#F5F5F5] focus:outline-none focus:border-[#F97316]"
@@ -562,8 +833,18 @@ export function DocumentClient({ id }: DocumentClientProps) {
                                     className="px-5 py-2 font-mono-tech text-xs uppercase bg-[#F97316] text-white font-bold hover:bg-[#EA580C] flex items-center gap-1.5"
                                 >
                                     <span>Save Title</span>
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                    <svg
+                                        className="w-3.5 h-3.5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M14 5l7 7m0 0l-7 7m7-7H3"
+                                        />
                                     </svg>
                                 </button>
                             </div>
