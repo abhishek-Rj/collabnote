@@ -15,7 +15,7 @@ func (f *TokenFunctions) GenerateAccessToken(userId string, username string) (st
 		UserId:   userId,
 		Username: username,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24 * 7)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "collabnote_backend",
 		},

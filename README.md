@@ -1,11 +1,12 @@
 # CollabNote
 
-**CollabNote** is a high-performance, real-time collaborative document editing platform. Built with a **Next.js 16 (React 19)** frontend and a **Go (Gin + GORM + PostgreSQL)** backend, CollabNote delivers co-authoring, workspace management, role-based document permissions, and shareable invite links.
+CollabNote is a high-performance, real-time collaborative document editing platform. Built with a Next.js 16 (React 19) frontend and a Go (Gin + GORM + PostgreSQL) backend, CollabNote delivers co-authoring, workspace management, role-based document permissions, and shareable invite links.
 
 ---
 
 ## Features
 
+- **CRDT-Based Real-Time Collaboration**: Resolves concurrent editing conflicts across multiple users without server lockouts or merge conflicts.
 - **Go (Gin) REST Backend**: High-concurrency Go server powered by Gin & GORM with PostgreSQL.
 - **Dark Tech Aesthetic**: Monospace technical UI styling with custom status indicators.
 - **Document Workspace**: Overview of all documents you own or have joined as a co-author.
@@ -15,8 +16,24 @@
   - Strict role checks (`Owner`, `Write`, `Read`).
   - Unauthorized access attempts trigger a `403 Forbidden` screen with an automated redirect back to the workspace.
 - **Document Sharing & Invite Links**:
-  - Generate shareable invite URLs (`/join/[code]`) with customizable permissions (**Can Edit** vs **Can View**).
+  - Generate shareable invite URLs (`/join/[code]`) with customizable permissions (Can Edit vs Can View).
   - Unauthenticated recipients are redirected to sign in before automatically joining the document session.
+
+---
+
+## Real-Time Collaboration via CRDT
+
+### The Problem CRDT Solves
+
+In collaborative editing, multiple peers can edit the same document concurrently over unreliable networks with variable latency. Traditional approaches rely on centralized document locking (which blocks users from editing simultaneously) or Last-Write-Wins (which overwrites concurrent changes and drops data). Centralized Operational Transformation (OT) requires a central server to coordinate and transform operational indices, adding latency and complexity.
+
+Conflict-Free Replicated Data Types (CRDTs) solve this problem by providing strong eventual consistency. Edits are modeled as commutative operations on a distributed data structure. Every peer can apply edits locally and optimistically without waiting for server confirmation, and updates can be received and merged in any order across peers while converging to the exact same document state without data loss.
+
+### Current Implementation & Migration Plan
+
+CollabNote currently leverages **Yjs**, a high-performance CRDT ecosystem, to handle document state vectors, remote change integration, and awareness. 
+
+As part of the technical roadmap, the project is planning to migrate from Yjs to a custom-built, in-house CRDT implementation. A dedicated engine will enable tailored low-level vector optimizations, deeper integration with the Go backend and WebSocket layer, lower memory footprints, and domain-specific state persistence tailored to CollabNote.
 
 ---
 
@@ -50,9 +67,9 @@ Setting up full-stack applications with dual Go/Node runtimes and a relational d
 ### Prerequisites
 
 Ensure you have the following installed on your system:
-- **Go** (v1.22 or higher)
-- **Node.js** (v18.0 or higher) & `npm`
-- **PostgreSQL** database service running locally or remotely
+- Go (v1.22 or higher)
+- Node.js (v18.0 or higher) & npm
+- PostgreSQL database service running locally or remotely
 
 ---
 
@@ -147,22 +164,6 @@ CollabNote requires a PostgreSQL database instance.
   ```bash
   npm run build
   ```
-
----
-
-## API Reference Summary
-
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :---: |
-| `POST` | `/auth/signin` | Register a new user account | No |
-| `POST` | `/auth/login` | Log in and receive HTTP-Only JWT cookies | No |
-| `GET` | `/auth/logout` | Revoke session cookies | Yes |
-| `GET` | `/document/fetch-all-docs` | Retrieve all owned & co-authored notes | Yes |
-| `POST` | `/document/create` | Create a new document with generated `public_id` | Yes |
-| `GET` | `/document/fetch?id=...` | Retrieve a document by ID / `public_id` | Yes |
-| `PUT` | `/document/update` | Update document title and content | Yes |
-| `POST` | `/document/invite` | Generate a shareable join code with permissions | Yes |
-| `POST` | `/document/join` | Join a shared document via invite code | Yes |
 
 ---
 
