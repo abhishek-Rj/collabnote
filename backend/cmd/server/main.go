@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/abhishek-Rj/Collabnote/config"
 	"github.com/abhishek-Rj/Collabnote/database"
+	"github.com/abhishek-Rj/Collabnote/middleware"
 	"github.com/abhishek-Rj/Collabnote/routes/authentication"
 	"github.com/abhishek-Rj/Collabnote/routes/documents"
 	"github.com/abhishek-Rj/Collabnote/websockets"
@@ -17,12 +18,13 @@ func main() {
 
 	cors_config := cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000", "https://localhost:3000", "http://127.0.0.1:3000"},
-		AllowMethods:     []string{"GET", "PUT", "POST", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept"},
+		AllowMethods:     []string{"GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept", "X-CSRF-Token"},
 		AllowCredentials: true,
 	}
 
 	server.Use(cors.New(cors_config))
+	server.Use(middleware.CSRFMiddleware())
 
 	server.GET("/check-health", func(c *gin.Context) {
 		c.JSON(200, gin.H{

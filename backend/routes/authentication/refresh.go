@@ -12,14 +12,14 @@ func Refresh(c *gin.Context) {
 	refreshToken, err := c.Cookie("refresh_token")
 
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "Unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "status": "Unauthorized"})
 		return
 	}
 
 	var tokenFunctions tokens.TokenFunctions
 	user, err := tokenFunctions.VerifyRefreshToken(refreshToken)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"status": "Unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "status": "Unauthorized"})
 		return
 	}
 

@@ -6,6 +6,7 @@ import (
 )
 
 func AuthRoutes(auth *gin.RouterGroup) {
+	auth.GET("/csrf", CSRF)
 	auth.POST("/login", Login)
 	auth.POST("/signin", Signin)
 	auth.POST("/refresh", Refresh)

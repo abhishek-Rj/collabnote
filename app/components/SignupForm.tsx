@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 
 export function SignupForm() {
     const router = useRouter();
@@ -54,42 +55,31 @@ export function SignupForm() {
             return;
         }
 
-        const authServerUrl =
-            process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
-
         setIsLoading(true);
         setStatusMsg(null);
 
         try {
-            const res = await fetch(`${authServerUrl}/auth/signin`, {
+            await api("/auth/signin", {
                 method: "POST",
-                credentials: "include",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username, password }),
             });
 
-            const data = await res.json().catch(() => ({}));
-
-            if (res.ok) {
-                setStatusMsg({
-                    type: "success",
-                    text: "ACCOUNT CREATED // REDIRECTING TO WORKSPACE...",
-                });
-                setTimeout(() => {
-                    router.push("/workspace");
-                }, 600);
-            } else {
-                setIsLoading(false);
-                setStatusMsg({
-                    type: "error",
-                    text: `REGISTRATION_FAILED // ${data.status || data.error || "USER ALREADY EXISTS OR INVALID DATA"}`,
-                });
-            }
-        } catch (err) {
+            setStatusMsg({
+                type: "success",
+                text: "ACCOUNT CREATED // REDIRECTING TO WORKSPACE...",
+            });
+            setTimeout(() => {
+                router.push("/workspace");
+            }, 600);
+        } catch (err: unknown) {
             setIsLoading(false);
+            const message =
+                err instanceof Error
+                    ? err.message
+                    : "USER ALREADY EXISTS OR INVALID DATA";
             setStatusMsg({
                 type: "error",
-                text: "CONNECTION_FAILED // UNABLE TO REACH AUTHENTICATION SERVER",
+                text: `REGISTRATION_FAILED // ${message}`,
             });
         }
     };

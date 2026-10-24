@@ -3,11 +3,15 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { api } from "@/lib/api";
 
 export function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const redirectUrl = searchParams.get("redirectUrl") || "/workspace";
+    const redirectUrl =
+        searchParams.get("next") ||
+        searchParams.get("redirectUrl") ||
+        "/workspace";
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -28,40 +32,27 @@ export function LoginForm() {
             return;
         }
 
-        const authServerUrl =
-            process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
-
         setIsLoading(true);
         setStatusMsg(null);
 
         try {
-            const res = await fetch(`${authServerUrl}/auth/login`, {
+            await api("/auth/login", {
                 method: "POST",
-                credentials: "include",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username, password }),
             });
 
-            const data = await res.json();
-
-            if (res.ok) {
-                setStatusMsg({
-                    type: "success",
-                    text: "AUTHENTICATED // REDIRECTING TO WORKSPACE...",
-                });
-                router.push(redirectUrl);
-            } else {
-                setIsLoading(false);
-                setStatusMsg({
-                    type: "error",
-                    text: `LOGIN_FAILED // ${data.status || data.error || "INVALID CREDENTIALS"}`,
-                });
-            }
-        } catch (err) {
+            setStatusMsg({
+                type: "success",
+                text: "AUTHENTICATED // REDIRECTING TO WORKSPACE...",
+            });
+            router.push(redirectUrl);
+        } catch (err: unknown) {
             setIsLoading(false);
+            const message =
+                err instanceof Error ? err.message : "INVALID CREDENTIALS";
             setStatusMsg({
                 type: "error",
-                text: "CONNECTION_FAILED // UNABLE TO REACH AUTHENTICATION SERVER",
+                text: `LOGIN_FAILED // ${message}`,
             });
         }
     };

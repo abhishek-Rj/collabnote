@@ -17,7 +17,7 @@ func User(c *gin.Context) {
 
 	user, err := gorm.G[database.User](database.DB).Where("id = ?", userId).First(ctx)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"status": "unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "status": "unauthorized"})
 		return
 	}
 

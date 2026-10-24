@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { api } from "@/lib/api";
 
 interface DocumentClientProps {
     id: string;
@@ -188,42 +189,37 @@ export function DocumentClient({ id }: DocumentClientProps) {
     // Fetch document from backend API on mount
     useEffect(() => {
         const fetchDocument = async () => {
-            const authServerUrl =
-                process.env.NEXT_PUBLIC_AUTH_SERVER_URL ||
-                "http://localhost:8080";
             try {
-                const res = await fetch(
-                    `${authServerUrl}/document/fetch?id=${id}`,
-                    {
-                        method: "GET",
-                        credentials: "include",
-                    },
-                );
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.document) {
-                        setTitle(data.document.title || "Untitled Document");
-                        setContent(data.document.content || "");
-                    }
-                } else if (res.status === 401) {
+                const data = await api<{
+                    document?: { title?: string; content?: string };
+                }>(`/document/fetch?id=${id}`);
+                if (data.document) {
+                    setTitle(data.document.title || "Untitled Document");
+                    setContent(data.document.content || "");
+                }
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : "";
+                if (message.toLowerCase().includes("unauthorized")) {
                     router.push("/login");
                     return;
-                } else if (res.status === 403) {
-                    const data = await res.json().catch(() => ({}));
+                } else if (
+                    message.toLowerCase().includes("denied") ||
+                    message.toLowerCase().includes("permitted") ||
+                    message.toLowerCase().includes("forbidden")
+                ) {
                     setAccessDenied({
                         title: "ACCESS DENIED",
                         message:
-                            data.error ||
+                            message ||
                             "You are not permitted to view this document.",
                     });
                     setTimeout(() => router.push("/workspace"), 2500);
                     return;
-                } else if (res.status === 404) {
-                    const data = await res.json().catch(() => ({}));
+                } else if (message.toLowerCase().includes("not found")) {
                     setAccessDenied({
                         title: "DOCUMENT NOT FOUND",
                         message:
-                            data.error ||
+                            message ||
                             "The requested document does not exist.",
                     });
                     setTimeout(() => router.push("/workspace"), 2500);
@@ -236,13 +232,6 @@ export function DocumentClient({ id }: DocumentClientProps) {
                     setTimeout(() => router.push("/workspace"), 2500);
                     return;
                 }
-            } catch (err) {
-                console.error("Error fetching document:", err);
-                setAccessDenied({
-                    title: "CONNECTION ERROR",
-                    message: "Failed to connect to backend server.",
-                });
-                setTimeout(() => router.push("/workspace"), 2500);
             } finally {
                 setIsLoaded(true);
             }
@@ -269,30 +258,30 @@ export function DocumentClient({ id }: DocumentClientProps) {
 
         setSaveState("saving");
 
-        const authServerUrl =
-            process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
         try {
-            const res = await fetch(`${authServerUrl}/document/update`, {
+            await api("/document/update", {
                 method: "PUT",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                },
                 body: JSON.stringify({
                     id: id,
                     title: titleToSave,
                     content: contentToSave,
                 }),
             });
-            if (res.ok) {
-                setSaveState("saved");
-                if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-                savedTimerRef.current = setTimeout(() => {
-                    setSaveState("idle");
-                }, 3000);
-            } else if (res.status === 401) {
+
+            setSaveState("saved");
+            if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+            savedTimerRef.current = setTimeout(() => {
+                setSaveState("idle");
+            }, 3000);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "";
+            if (message.toLowerCase().includes("unauthorized")) {
                 router.push("/login");
-            } else if (res.status === 403) {
+            } else if (
+                message.toLowerCase().includes("denied") ||
+                message.toLowerCase().includes("permitted") ||
+                message.toLowerCase().includes("forbidden")
+            ) {
                 setAccessDenied({
                     title: "ACCESS DENIED",
                     message: "You are not permitted to edit this document.",
@@ -301,9 +290,7 @@ export function DocumentClient({ id }: DocumentClientProps) {
             } else {
                 setSaveState("error");
             }
-        } catch (err) {
             console.error("Autosave error:", err);
-            setSaveState("error");
         }
     };
 
@@ -344,35 +331,32 @@ export function DocumentClient({ id }: DocumentClientProps) {
     // Generate Shareable Link using POST /document/invite API
     const handleGenerateShareLink = async () => {
         setIsGeneratingInvite(true);
-        const authServerUrl =
-            process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
         try {
-            const res = await fetch(`${authServerUrl}/document/invite`, {
-                method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
+            const data = await api<{ code?: string; url?: string }>(
+                "/document/invite",
+                {
+                    method: "POST",
+                    body: JSON.stringify({
+                        note_id: id,
+                        permission: permissionInput,
+                    }),
                 },
-                body: JSON.stringify({
-                    note_id: id,
-                    permission: permissionInput,
-                }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.code) {
-                    const origin =
-                        typeof window !== "undefined"
-                            ? window.location.origin
-                            : "http://localhost:3000";
-                    setGeneratedInviteUrl(`${origin}/join/${data.code}`);
-                } else if (data.url) {
-                    setGeneratedInviteUrl(data.url);
-                }
-            } else if (res.status === 401) {
+            );
+
+            if (data.code) {
+                const origin =
+                    typeof window !== "undefined"
+                        ? window.location.origin
+                        : "http://localhost:3000";
+                setGeneratedInviteUrl(`${origin}/join/${data.code}`);
+            } else if (data.url) {
+                setGeneratedInviteUrl(data.url);
+            }
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "";
+            if (message.toLowerCase().includes("unauthorized")) {
                 router.push("/login");
             }
-        } catch (err) {
             console.error("Error generating share link:", err);
         } finally {
             setIsGeneratingInvite(false);

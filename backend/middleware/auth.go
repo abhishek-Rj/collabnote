@@ -21,14 +21,20 @@ func UserAuthentication(c *gin.Context) {
 	}
 
 	if accessToken == "" {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"status": "unauthorized"})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+			"error":  "Unauthorized",
+			"status": "unauthorized",
+		})
 		return
 	}
 
 	var tokenFunction tokens.TokenFunctions
 	user, err := tokenFunction.VerifyAccessToken(accessToken)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"status": "unauthorized"})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+			"error":  "Unauthorized",
+			"status": "unauthorized",
+		})
 		return
 	}
 

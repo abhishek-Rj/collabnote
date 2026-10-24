@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { api } from "@/lib/api";
 
 interface JoinClientProps {
     code: string;
@@ -17,44 +18,36 @@ export function JoinClient({ code }: JoinClientProps) {
 
     useEffect(() => {
         const joinDocument = async () => {
-            const authServerUrl =
-                process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
-
             try {
-                const res = await fetch(`${authServerUrl}/document/join`, {
+                const data = await api<{
+                    title?: string;
+                    public_id?: string;
+                }>("/document/join", {
                     method: "POST",
-                    credentials: "include",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
                     body: JSON.stringify({ code }),
                 });
 
-                if (res.ok) {
-                    const data = await res.json();
-                    setStatus("success");
-                    setDocTitle(data.title || "Document");
+                setStatus("success");
+                setDocTitle(data.title || "Document");
 
-                    // Redirect to joined document page
-                    setTimeout(() => {
-                        if (data.public_id) {
-                            router.push(`/workspace/document/${data.public_id}`);
-                        } else {
-                            router.push("/workspace");
-                        }
-                    }, 1200);
-                } else if (res.status === 401) {
-                    // Redirect to login page and return back to join page after login
-                    router.push(`/login?redirectUrl=/join/${code}`);
-                } else {
-                    const data = await res.json().catch(() => ({}));
-                    setStatus("error");
-                    setErrorMessage(data.error || "Invalid or expired invite code.");
+                // Redirect to joined document page
+                setTimeout(() => {
+                    if (data.public_id) {
+                        router.push(`/workspace/document/${data.public_id}`);
+                    } else {
+                        router.push("/workspace");
+                    }
+                }, 1200);
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : "";
+                if (message.toLowerCase().includes("unauthorized")) {
+                    router.push(`/login?next=/join/${code}`);
+                    return;
                 }
-            } catch (err) {
-                console.error("Error joining document:", err);
                 setStatus("error");
-                setErrorMessage("Failed to join document. Please check your connection.");
+                setErrorMessage(
+                    message || "Invalid or expired invite code.",
+                );
             }
         };
 

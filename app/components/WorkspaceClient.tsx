@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TechnicalAnnotation } from "./TechnicalAnnotation";
 import { useSession } from "../context/session";
+import { api } from "@/lib/api";
 
 interface NoteItem {
     id: string;
@@ -33,22 +34,18 @@ export function WorkspaceClient() {
     // Fetch user documents (owned and joined) from backend
     const fetchAllDocs = async () => {
         setIsLoading(true);
-        const authServerUrl =
-            process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
         try {
-            const res = await fetch(`${authServerUrl}/document/fetch-all-docs`, {
-                method: "GET",
-                credentials: "include",
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.notes && Array.isArray(data.notes)) {
-                    setNotes(data.notes);
-                }
-            } else if (res.status === 401) {
+            const data = await api<{ notes?: NoteItem[] }>(
+                "/document/fetch-all-docs",
+            );
+            if (data.notes && Array.isArray(data.notes)) {
+                setNotes(data.notes);
+            }
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "";
+            if (message.toLowerCase().includes("unauthorized")) {
                 router.push("/login");
             }
-        } catch (err) {
             console.error("Failed to fetch joined documents:", err);
         } finally {
             setIsLoading(false);
@@ -64,33 +61,27 @@ export function WorkspaceClient() {
         e.preventDefault();
         setIsCreating(true);
 
-        const authServerUrl =
-            process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
         const titleToSend = newDocTitle.trim() || "Untitled document";
 
         try {
-            const res = await fetch(`${authServerUrl}/document/create`, {
-                method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
+            const data = await api<{ document?: { public_id: string } }>(
+                "/document/create",
+                {
+                    method: "POST",
+                    body: JSON.stringify({ title: titleToSend, content: "" }),
                 },
-                body: JSON.stringify({ title: titleToSend, content: "" }),
-            });
+            );
 
-            if (res.ok) {
-                const data = await res.json();
-                if (data.document && data.document.public_id) {
-                    router.push(`/workspace/document/${data.document.public_id}`);
-                    return;
-                }
-            } else if (res.status === 401) {
+            if (data.document && data.document.public_id) {
+                router.push(`/workspace/document/${data.document.public_id}`);
+                return;
+            }
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "";
+            if (message.toLowerCase().includes("unauthorized")) {
                 router.push("/login");
                 return;
-            } else {
-                console.error("Failed to create document: HTTP status", res.status);
             }
-        } catch (err) {
             console.error("Failed to create document:", err);
         } finally {
             setIsCreating(false);
@@ -99,12 +90,9 @@ export function WorkspaceClient() {
     };
 
     const handleLogout = async () => {
-        const authServerUrl =
-            process.env.NEXT_PUBLIC_AUTH_SERVER_URL || "http://localhost:8080";
         try {
-            await fetch(`${authServerUrl}/auth/logout`, {
+            await api("/auth/logout", {
                 method: "GET",
-                credentials: "include",
             });
         } catch (err) {
             console.error("Logout request failed:", err);
