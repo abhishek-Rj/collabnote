@@ -1,11 +1,30 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession } from "../context/session";
+import { api } from "@/lib/api";
 
 export function Header() {
-    const { user, isLoading } = useSession();
+    const { user, setUser, isLoading } = useSession();
+    const router = useRouter();
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+    const handleLogout = async () => {
+        setIsLoggingOut(true);
+        try {
+            await api("/auth/logout", {
+                method: "GET",
+            });
+        } catch (err) {
+            console.error("Logout error:", err);
+        } finally {
+            setUser(null);
+            setIsLoggingOut(false);
+            router.push("/login");
+        }
+    };
 
     return (
         <header className="w-full border-b border-[#262626] bg-[#121212]/90 backdrop-blur-md sticky top-0 z-50">
@@ -32,13 +51,23 @@ export function Header() {
                     {isLoading ? (
                         <div className="w-28 h-8 bg-[#1E1E1E] border border-[#333333] animate-pulse" />
                     ) : user ? (
-                        <Link
-                            href="/workspace"
-                            className="font-mono-tech text-xs uppercase px-4 sm:px-5 py-2 bg-[#F97316] text-white font-bold hover:bg-[#EA580C] transition-colors border border-[#F97316] shadow-lg flex items-center gap-1.5"
-                        >
-                            <span>Workspace</span>
-                            <span>→</span>
-                        </Link>
+                        <>
+                            <button
+                                onClick={handleLogout}
+                                disabled={isLoggingOut}
+                                className="font-mono-tech text-xs uppercase px-3 sm:px-4 py-2 text-[#A3A3A3] hover:text-white hover:bg-[#262626] transition-colors border border-transparent hover:border-[#333333] disabled:opacity-50"
+                            >
+                                {isLoggingOut ? "Logging out..." : "Log Out"}
+                            </button>
+
+                            <Link
+                                href="/workspace"
+                                className="font-mono-tech text-xs uppercase px-4 sm:px-5 py-2 bg-[#F97316] text-white font-bold hover:bg-[#EA580C] transition-colors border border-[#F97316] shadow-lg flex items-center gap-1.5"
+                            >
+                                <span>Workspace</span>
+                                <span>→</span>
+                            </Link>
+                        </>
                     ) : (
                         <>
                             <Link

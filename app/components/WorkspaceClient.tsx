@@ -29,7 +29,7 @@ export function WorkspaceClient() {
     const [newDocTitle, setNewDocTitle] = useState("");
     const [isCreating, setIsCreating] = useState(false);
 
-    const { user, isLoading: isSessionLoading } = useSession();
+    const { user, setUser, isLoading: isSessionLoading } = useSession();
     const isPageLoading = isLoading || isSessionLoading;
 
     // Fetch user documents (owned and joined) from backend
@@ -97,8 +97,10 @@ export function WorkspaceClient() {
             });
         } catch (err) {
             console.error("Logout request failed:", err);
+        } finally {
+            setUser(null);
+            router.push("/login");
         }
-        router.push("/login");
     };
 
     // Filter documents by owner and search query
