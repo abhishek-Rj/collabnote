@@ -1,15 +1,27 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+    createContext,
+    useContext,
+    useEffect,
+    useState,
+    useCallback,
+} from "react";
+import { api } from "@/lib/api";
 
-interface user {
+export interface User {
+    id: string;
     userID: string;
     username: string;
+    name?: string;
+    email?: string | null;
 }
 
 interface SessionContextType {
-    user: user | null;
-    setUser: (user: user | null) => void;
+    user: User | null;
+    setUser: (user: User | null) => void;
+    isLoading: boolean;
+    refetchUser: () => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -19,18 +31,46 @@ export function SessionProvider({
     session,
 }: {
     children: React.ReactNode;
-    session: any;
+    session?: any;
 }) {
-    const [user, setUser] = useState<user | null>(session || null);
+    const [user, setUser] = useState<User | null>(() => {
+        if (!session) return null;
+        return {
+            ...session,
+            id: session.id || session.userID,
+            userID: session.userID || session.id,
+        };
+    });
+    const [isLoading, setIsLoading] = useState<boolean>(!session);
+
+    const refetchUser = useCallback(async () => {
+        try {
+            const data = await api<{ user?: any }>("/auth/me");
+            if (data?.user) {
+                const normalized: User = {
+                    ...data.user,
+                    id: data.user.id || data.user.userID,
+                    userID: data.user.userID || data.user.id,
+                };
+                setUser(normalized);
+            } else {
+                setUser(null);
+            }
+        } catch {
+            setUser(null);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-        if (session) {
-            setUser(session);
-        }
-    }, [session]);
+        refetchUser();
+    }, [refetchUser]);
 
     return (
-        <SessionContext.Provider value={{ user, setUser }}>
+        <SessionContext.Provider
+            value={{ user, setUser, isLoading, refetchUser }}
+        >
             {children}
         </SessionContext.Provider>
     );
