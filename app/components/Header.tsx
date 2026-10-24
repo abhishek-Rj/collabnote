@@ -1,7 +1,12 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
+import { useSession } from "../context/session";
 
 export function Header() {
+    const { user, isLoading } = useSession();
+
     return (
         <header className="w-full border-b border-[#262626] bg-[#121212]/90 backdrop-blur-md sticky top-0 z-50">
             <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
@@ -24,19 +29,33 @@ export function Header() {
 
                 {/* Auth CTA Actions */}
                 <div className="flex items-center gap-2 sm:gap-3">
-                    <Link
-                        href="/login"
-                        className="font-mono-tech text-xs uppercase px-3 sm:px-4 py-2 text-[#F5F5F5] hover:bg-[#262626] transition-colors border border-transparent hover:border-[#333333]"
-                    >
-                        Log In
-                    </Link>
+                    {isLoading ? (
+                        <div className="w-28 h-8 bg-[#1E1E1E] border border-[#333333] animate-pulse" />
+                    ) : user ? (
+                        <Link
+                            href="/workspace"
+                            className="font-mono-tech text-xs uppercase px-4 sm:px-5 py-2 bg-[#F97316] text-white font-bold hover:bg-[#EA580C] transition-colors border border-[#F97316] shadow-lg flex items-center gap-1.5"
+                        >
+                            <span>Workspace</span>
+                            <span>→</span>
+                        </Link>
+                    ) : (
+                        <>
+                            <Link
+                                href="/login"
+                                className="font-mono-tech text-xs uppercase px-3 sm:px-4 py-2 text-[#F5F5F5] hover:bg-[#262626] transition-colors border border-transparent hover:border-[#333333]"
+                            >
+                                Log In
+                            </Link>
 
-                    <Link
-                        href="/signup"
-                        className="font-mono-tech text-xs uppercase px-4 sm:px-5 py-2 bg-[#F5F5F5] text-[#121212] font-semibold hover:bg-[#F97316] hover:text-white transition-colors border border-[#F5F5F5] hover:border-[#F97316]"
-                    >
-                        Sign Up [NOW]
-                    </Link>
+                            <Link
+                                href="/signup"
+                                className="font-mono-tech text-xs uppercase px-4 sm:px-5 py-2 bg-[#F5F5F5] text-[#121212] font-semibold hover:bg-[#F97316] hover:text-white transition-colors border border-[#F5F5F5] hover:border-[#F97316]"
+                            >
+                                Sign Up [NOW]
+                            </Link>
+                        </>
+                    )}
                 </div>
             </div>
         </header>

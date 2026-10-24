@@ -29,7 +29,8 @@ export function WorkspaceClient() {
     const [newDocTitle, setNewDocTitle] = useState("");
     const [isCreating, setIsCreating] = useState(false);
 
-    const { user } = useSession();
+    const { user, isLoading: isSessionLoading } = useSession();
+    const isPageLoading = isLoading || isSessionLoading;
 
     // Fetch user documents (owned and joined) from backend
     const fetchAllDocs = async () => {
@@ -106,12 +107,12 @@ export function WorkspaceClient() {
             doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             doc.content.toLowerCase().includes(searchQuery.toLowerCase());
 
-        const currentUserId = user?.userID;
+        const currentUserId = user?.userID || user?.id;
         if (filterOwner === "Owned by me") {
-            return matchesSearch && doc.owner_id === currentUserId;
+            return matchesSearch && currentUserId && doc.owner_id === currentUserId;
         }
         if (filterOwner === "Not owned by me") {
-            return matchesSearch && doc.owner_id !== currentUserId;
+            return matchesSearch && currentUserId && doc.owner_id !== currentUserId;
         }
         return matchesSearch;
     });
@@ -179,6 +180,14 @@ export function WorkspaceClient() {
 
                 {/* Right: Controls */}
                 <div className="flex items-center gap-3 shrink-0">
+                    {isSessionLoading ? (
+                        <div className="w-20 h-5 bg-[#262626] animate-pulse hidden sm:inline-block" />
+                    ) : user?.username ? (
+                        <span className="font-mono-tech text-xs text-[#A3A3A3] hidden sm:inline-block">
+                            @{user.username}
+                        </span>
+                    ) : null}
+
                     <TechnicalAnnotation
                         label="WORKSPACE"
                         value="ACTIVE"
@@ -244,17 +253,17 @@ export function WorkspaceClient() {
                     </div>
 
                     {/* Loading State */}
-                    {isLoading && (
+                    {isPageLoading && (
                         <div className="py-16 text-center space-y-3">
                             <div className="w-8 h-8 border-2 border-t-[#F97316] border-[#333333] rounded-full animate-spin mx-auto" />
                             <p className="font-mono-tech text-xs text-[#A3A3A3] uppercase">
-                                Loading documents...
+                                Loading workspace documents...
                             </p>
                         </div>
                     )}
 
                     {/* Empty State */}
-                    {!isLoading && filteredDocs.length === 0 && (
+                    {!isPageLoading && filteredDocs.length === 0 && (
                         <div className="py-16 px-4 text-center border border-dashed border-[#333333] bg-[#1E1E1E]/50 space-y-4">
                             <div className="font-mono-tech text-xs text-[#A3A3A3] uppercase">
                                 {searchQuery
@@ -277,11 +286,12 @@ export function WorkspaceClient() {
                     )}
 
                     {/* Real Documents Grid */}
-                    {!isLoading && filteredDocs.length > 0 && (
+                    {!isPageLoading && filteredDocs.length > 0 && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                             {filteredDocs.map((doc) => {
                                 const isOwner =
-                                    user && doc.owner_id === user.userID;
+                                    user &&
+                                    doc.owner_id === (user.userID || user.id);
                                 return (
                                     <div
                                         key={doc.id || doc.public_id}
