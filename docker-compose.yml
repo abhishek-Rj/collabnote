@@ -1,0 +1,73 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: collabnote-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-collabnote}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-collabnote}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - collabnote-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: collabnote-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_PORT: "8080"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-collabnote}
+      JWT_ACCESS_TOKEN: ${JWT_ACCESS_TOKEN:-super_secret_access_key_change_me}
+      JWT_REFRESH_TOKEN: ${JWT_REFRESH_TOKEN:-super_secret_refresh_key_change_me}
+      BCRYPT_SALT: ${BCRYPT_SALT:-10}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    networks:
+      - collabnote-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_AUTH_SERVER_URL: ${NEXT_PUBLIC_AUTH_SERVER_URL:-http://localhost:8080}
+        NEXT_PUBLIC_WEBSOCKET_SERVER_URL: ${NEXT_PUBLIC_WEBSOCKET_SERVER_URL:-ws://localhost:8080/ws/document}
+    container_name: collabnote-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      PORT: "3000"
+      NEXT_PUBLIC_AUTH_SERVER_URL: ${NEXT_PUBLIC_AUTH_SERVER_URL:-http://localhost:8080}
+      NEXT_PUBLIC_WEBSOCKET_SERVER_URL: ${NEXT_PUBLIC_WEBSOCKET_SERVER_URL:-ws://localhost:8080/ws/document}
+    ports:
+      - "3000:3000"
+    networks:
+      - collabnote-network
+
+networks:
+  collabnote-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

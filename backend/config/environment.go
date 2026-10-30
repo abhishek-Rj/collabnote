@@ -22,12 +22,11 @@ type Config struct {
 var App Config
 
 func Load() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file:", err)
+	if err := godotenv.Load(); err != nil {
+		log.Println("Notice: .env file not found or could not be loaded, using environment variables:", err)
 	}
 
-	err = envconfig.Process("", &App)
+	err := envconfig.Process("", &App)
 	if err != nil {
 		log.Fatal("Error processing environment variables:", err)
 	}
