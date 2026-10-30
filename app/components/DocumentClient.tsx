@@ -5,22 +5,16 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
+import * as Y from "yjs";
+
 interface DocumentClientProps {
     id: string;
 }
 
-enum Type {
-    Insert = "insert",
-    Delete = "delete",
-    Modify = "modify",
-}
-
-interface Operation {
-    type: Type; // "insert" | "delete" | "modify"
-    position: number;
-    len?: number; // (optional) No need in insert
-    text?: string; // (optional) No need in delete
-}
+// Minimal Yjs Sync Protocol message tags
+const MSG_SYNC_STEP_1 = 0; // Payload: state vector
+const MSG_SYNC_STEP_2 = 1; // Payload: update
+const MSG_UPDATE = 2;      // Payload: incremental update
 
 export function DocumentClient({ id }: DocumentClientProps) {
     const router = useRouter();
@@ -51,139 +45,156 @@ export function DocumentClient({ id }: DocumentClientProps) {
     const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    // websocket Connection
-    const [socketConnection, setSocketConnection] = useState<WebSocket | null>(
-        null,
-    );
+    // Yjs instance and Textarea refs
+    const ydocRef = useRef<Y.Doc>(new Y.Doc());
+    const ytextRef = useRef<Y.Text>(ydocRef.current.getText("content"));
+    const wsRef = useRef<WebSocket | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const isApplyingRemoteRef = useRef(false);
 
     const isInitialMount = useRef(true);
     const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
     const savedTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Send binary message through WebSocket
+    const sendBinaryMessage = (type: number, payload: Uint8Array) => {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            const buffer = new Uint8Array(payload.length + 1);
+            buffer[0] = type;
+            buffer.set(payload, 1);
+            wsRef.current.send(buffer);
+        }
+    };
+
+    // Initialize Yjs WebSocket Sync
     useEffect(() => {
+        const ydoc = ydocRef.current;
+        const ytext = ytextRef.current;
+
         const ws = new WebSocket(
             `${process.env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL}/${id}`,
         );
-        console.log(`${process.env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL}/${id}`);
-        setSocketConnection(ws);
+        ws.binaryType = "arraybuffer";
+        wsRef.current = ws;
 
         ws.onopen = () => {
-            console.log("Connection Established");
+            console.log("WebSocket connected. Sending SyncStep 1...");
+            // Step 1: Send local state vector to request missing updates from peers
+            const stateVector = Y.encodeStateVector(ydoc);
+            sendBinaryMessage(MSG_SYNC_STEP_1, stateVector);
         };
 
         ws.onmessage = (event) => {
-            const operation: Operation = JSON.parse(event.data);
+            if (!(event.data instanceof ArrayBuffer)) return;
+            const data = new Uint8Array(event.data);
+            if (data.length === 0) return;
 
-            if (operation.type === "insert") {
-                // Insert operation.text into content
-                const position = operation.position;
-                const text = operation.text;
-                setContent(
-                    (content) =>
-                        content.slice(0, position) +
-                        text +
-                        content.slice(position),
-                );
-            }
+            const msgType = data[0];
+            const payload = data.subarray(1);
 
-            if (operation.type === "delete") {
-                // Delete operation.text from content
-                const position = operation.position;
-                const len = operation.len!;
-                setContent(
-                    (content) =>
-                        content.slice(0, position) +
-                        content.slice(position + len),
-                );
-            }
-
-            if (operation.type === "modify") {
-                // Modify operation.text to content
-                const position = operation.position;
-                const len = operation.len!;
-                const text = operation.text!;
-                const replace = content.slice(position, len);
-                setContent(
-                    (content) =>
-                        content.slice(0, position) +
-                        content.replace(replace, text),
-                );
+            if (msgType === MSG_SYNC_STEP_1) {
+                // Peer requested updates missing from their state vector
+                const replyUpdate = Y.encodeStateAsUpdate(ydoc, payload);
+                sendBinaryMessage(MSG_SYNC_STEP_2, replyUpdate);
+            } else if (msgType === MSG_SYNC_STEP_2 || msgType === MSG_UPDATE) {
+                // Apply update received from remote peer
+                if (payload.length > 0) {
+                    isApplyingRemoteRef.current = true;
+                    try {
+                        Y.applyUpdate(ydoc, payload, "remote");
+                    } finally {
+                        isApplyingRemoteRef.current = false;
+                    }
+                }
             }
         };
+
+        // Broadcast local Yjs updates to peers
+        const handleDocUpdate = (update: Uint8Array, origin: any) => {
+            if (origin !== "remote") {
+                sendBinaryMessage(MSG_UPDATE, update);
+            }
+        };
+        ydoc.on("update", handleDocUpdate);
+
+        // Observe Y.Text changes to update React state and preserve textarea caret
+        const handleTextObserve = () => {
+            const newText = ytext.toString();
+            const textarea = textareaRef.current;
+
+            if (textarea && document.activeElement === textarea) {
+                const prevStart = textarea.selectionStart;
+                const prevEnd = textarea.selectionEnd;
+                setContent(newText);
+                // Restore caret position on next frame
+                requestAnimationFrame(() => {
+                    if (textareaRef.current) {
+                        const len = textareaRef.current.value.length;
+                        textareaRef.current.selectionStart = Math.min(prevStart, len);
+                        textareaRef.current.selectionEnd = Math.min(prevEnd, len);
+                    }
+                });
+            } else {
+                setContent(newText);
+            }
+        };
+        ytext.observe(handleTextObserve);
 
         ws.onclose = () => {
-            console.log("Connection Closed");
+            console.log("WebSocket Connection Closed");
         };
 
-        ws.onerror = () => {
-            console.log("Error!!");
+        ws.onerror = (err) => {
+            console.error("WebSocket Error:", err);
         };
 
         return () => {
-            ws?.close();
+            ydoc.off("update", handleDocUpdate);
+            ytext.unobserve(handleTextObserve);
+            ws.close();
         };
-    }, []);
+    }, [id]);
 
-    const getOperation = (
-        content: string,
-        newContent: string,
-    ): Operation | null => {
-        if (content === newContent) {
-            return null;
-        }
+    // Apply textarea changes into Y.Text using delta calculation
+    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const newContent = e.target.value;
+        const ytext = ytextRef.current;
+        const currentText = ytext.toString();
 
+        if (newContent === currentText) return;
+
+        // Compute common prefix
         let start = 0;
-        while (
-            content[start] === newContent[start] &&
-            start < content.length &&
-            start < newContent.length
-        ) {
+        const minLength = Math.min(currentText.length, newContent.length);
+        while (start < minLength && currentText[start] === newContent[start]) {
             start++;
         }
 
-        let oldEnd = content.length;
+        // Compute common suffix
+        let oldEnd = currentText.length;
         let newEnd = newContent.length;
-
         while (
-            content[oldEnd] === newContent[newEnd] &&
-            oldEnd >= start &&
-            newEnd >= start
+            oldEnd > start &&
+            newEnd > start &&
+            currentText[oldEnd - 1] === newContent[newEnd - 1]
         ) {
             oldEnd--;
             newEnd--;
         }
 
-        if (oldEnd < start) {
-            return {
-                type: Type.Insert,
-                position: start,
-                text: newContent.slice(start, newEnd + 1),
-            };
-        }
+        // Apply changes atomically to Y.Text
+        ydocRef.current.transact(() => {
+            const deleteCount = oldEnd - start;
+            if (deleteCount > 0) {
+                ytext.delete(start, deleteCount);
+            }
+            const insertText = newContent.slice(start, newEnd);
+            if (insertText.length > 0) {
+                ytext.insert(start, insertText);
+            }
+        }, "local");
 
-        if (newEnd < start) {
-            return {
-                type: Type.Delete,
-                position: start,
-                len: oldEnd - start + 1,
-            };
-        }
-
-        return {
-            type: Type.Modify,
-            position: start,
-            len: oldEnd - start + 1,
-            text: newContent.slice(start, newEnd + 1),
-        };
-    };
-
-    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const newContent = e.target.value;
-
-        const operation = getOperation(content, newContent);
         setContent(newContent);
-
-        socketConnection?.send(JSON.stringify(operation));
     };
 
     // Fetch document from backend API on mount
@@ -195,7 +206,14 @@ export function DocumentClient({ id }: DocumentClientProps) {
                 }>(`/document/fetch?id=${id}`);
                 if (data.document) {
                     setTitle(data.document.title || "Untitled Document");
-                    setContent(data.document.content || "");
+                    const initialContent = data.document.content || "";
+                    const ytext = ytextRef.current;
+                    if (ytext.length === 0 && initialContent.length > 0) {
+                        ydocRef.current.transact(() => {
+                            ytext.insert(0, initialContent);
+                        }, "initial");
+                    }
+                    setContent(ytext.toString() || initialContent);
                 }
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : "";
@@ -641,6 +659,7 @@ export function DocumentClient({ id }: DocumentClientProps) {
             <main className="flex-1 max-w-5xl w-full mx-auto px-4 md:px-8 py-8">
                 <div className="w-full bg-[#1E1E1E] border border-[#333333] shadow-2xl p-6 md:p-8 flex flex-col min-h-[600px]">
                     <textarea
+                        ref={textareaRef}
                         value={content}
                         onChange={handleChange}
                         className="w-full flex-1 bg-transparent text-[#F5F5F5] font-sans text-base md:text-lg leading-relaxed focus:outline-none resize-none min-h-[540px] selection:bg-[#F97316] selection:text-white"
